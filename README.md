@@ -1,1 +1,1 @@
-# ENM140-project
+# Project for the course Game Theory

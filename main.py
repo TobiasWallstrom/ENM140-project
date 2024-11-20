@@ -1,88 +1,36 @@
 import numpy as np
+from backend import *
 
-class GameGrid:
-    def __init__(self, L, N):
-        """
-        Initializes the game grid with periodic boundary conditions.
-        :param L: Size of the grid (LxL)
-        :param N: Neighborhood radius
-        """
-        self.L = L  # Size of the grid
-        self.N = N  # Neighborhood radius
-        self.players = np.arange(L * L)  # 1D array representing player IDs
+def testGrid():
+    # Example usage:
+    L = 6  # Size of the grid (LxL)
+    N = 1  # Maximum neighborhood radius
 
-    def get_neighbors_taxigrid(self, player_id):
-        """
-        Finds the neighbors of a player using Manhattan distance.
-        Diagonal fields are not considered direct neighbors.
-        :param player_id: ID of the player
-        :return: List of IDs of neighboring players
-        """
-        x, y = divmod(player_id, self.L)  # Convert player ID to grid coordinates
+    game = GameGrid(L, N)
+    game.display_grid()  # Displays the grid in 2D format
 
-        neighbors = []
-        for i in range(-self.N, self.N + 1):
-            for j in range(-self.N, self.N + 1):
-                # Exclude diagonal neighbors that are too far
-                if abs(i) + abs(j) > self.N:
-                    continue
-                # Periodic boundary conditions
-                nx = (x + i) % self.L
-                ny = (y + j) % self.L
-                # Exclude the player itself
-                if (nx, ny) != (x, y):
-                    neighbor_id = nx * self.L + ny
-                    neighbors.append(neighbor_id)
-        return neighbors
+    # Example: Find neighbors for a specific player by ID using both methods
+    player_id = 8  # Player ID
+    neighbors = game.get_neighbors(player_id)
 
-    def get_neighbors_diagonal(self, player_id):
-        """
-        Finds the neighbors of a player considering diagonal fields as direct neighbors.
-        :param player_id: ID of the player
-        :return: List of IDs of neighboring players
-        """
-        x, y = divmod(player_id, self.L)  # Convert player ID to grid coordinates
+    print(f"Neighbors of player {player_id}: {neighbors}")
 
-        neighbors = []
-        for i in range(-self.N, self.N + 1):
-            for j in range(-self.N, self.N + 1):
-                # Exclude distances greater than N (including diagonals)
-                if max(abs(i), abs(j)) > self.N:
-                    continue
-                # Periodic boundary conditions
-                nx = (x + i) % self.L
-                ny = (y + j) % self.L
-                # Exclude the player itself
-                if (nx, ny) != (x, y):
-                    neighbor_id = nx * self.L + ny
-                    neighbors.append(neighbor_id)
-        return neighbors
+if __name__ == "__main__":
+    # Initialize the grid
+    L = 3  # Grid size
+    N = 1  # Neighborhood radius
+    diagonal_neighbors = True  # Include diagonal neighbors
 
-    def display_grid(self):
-        """
-        Displays the grid with player IDs in 2D format for visualization.
-        """
-        grid = self.players.reshape(self.L, self.L)
-        print(grid)
+    grid = GameGrid(L, N, diagonal_neighbors)
 
-    def get_grid(self):
-        """
-        Returns the current grid as a 2D array for external visualization.
-        """
-        return self.players.reshape(self.L, self.L)
+    # Initialize the game with a simple utility function
+    utility_function = SimpleUtility()
+    game = Game(grid, utility_function)
 
+    game.play_rounds(3)
 
-# Example usage:
-L = 6  # Size of the grid (5x5)
-N = 1  # Maximum neighborhood radius
+    #game.display_total_results()  # Display the total results
+    game.summarize_player(2)
+    game.display_utility_grid()
 
-game = GameGrid(L, N)
-game.display_grid()  # Displays the grid in 2D format
-
-# Example: Find neighbors for a specific player by ID using both methods
-player_id = 8  # Player ID
-taxi_neighbors = game.get_neighbors_taxigrid(player_id)
-diagonal_neighbors = game.get_neighbors_diagonal(player_id)
-
-print(f"Taxigrid neighbors of player {player_id}: {taxi_neighbors}")
-print(f"Diagonal neighbors of player {player_id}: {diagonal_neighbors}")
+    print(game.grid.players[2].interaction_history)
