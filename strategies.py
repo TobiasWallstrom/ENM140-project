@@ -73,4 +73,37 @@ class ExceptAlwaysStrategy(Strategy):
     def respond_to_help(self, player, requester_id, favor_size, interaction_history):
         return True
 
+class TitForTatStrategy(Strategy):
+    def __init__(self):
+        super().__init__("Tit-for-Tat")
 
+    def ask_for_help(self, player, neighbors, interaction_history):
+        """
+        Decide whom to ask for help based on the Tit-for-Tat principle.
+        Always cooperates unless there's no clear history.
+        """
+        if not neighbors:
+            return {"favor_size": None, "target": None, "action": "none"}
+
+        # Ask the first neighbor in the list with a random favor size
+        target = neighbors[0]
+        favor_size = 1  # Fixed favor size for simplicity
+        return {"favor_size": favor_size, "target": target, "action": "ask"}
+
+    def respond_to_help(self, player, requester_id, favor_size, interaction_history):
+        """
+        Respond to help based on the Tit-for-Tat principle.
+        Cooperates if the requester cooperated in the past, otherwise refuses.
+        Ignores "busy" outcomes.
+        """
+        for past_requester_id, outcome in interaction_history:
+            if past_requester_id == requester_id:
+                # If requester cooperated before, cooperate
+                if outcome == "cooperate":
+                    return True
+                # If requester rejected before, reject
+                elif outcome == "reject":
+                    return False
+
+        # Default to cooperation if no history
+        return True
