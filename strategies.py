@@ -1,6 +1,9 @@
 import random
 
 class Strategy:
+    def __init__(self, name):
+        self.name = name
+
     def ask_for_help(self, player, neighbors, interaction_history):
         """
         Decide whether to ask for help, from whom, and how much.
@@ -28,6 +31,9 @@ class Strategy:
         raise NotImplementedError("This method should be implemented by subclasses.")
 
 class SelfishStrategy(Strategy):
+    def __init__(self):
+        super().__init__("Selfish")
+
     def ask_for_help(self, player, neighbors, interaction_history):
         if not neighbors:
             return {"favor_size": None, "target": None, "action": "none"}
@@ -40,6 +46,9 @@ class SelfishStrategy(Strategy):
         return False
     
 class RandomStrategy(Strategy):
+    def __init__(self):
+        super().__init__("Random")
+
     def ask_for_help(self, player, neighbors, interaction_history):
         if not neighbors or random.random() < 0.5:  # 50% chance to skip asking
             return {"favor_size": None, "target": None, "action": "none"}
@@ -52,6 +61,9 @@ class RandomStrategy(Strategy):
         return True
     
 class ExceptAlwaysStrategy(Strategy):
+    def __init__(self):
+        super().__init__("ExceptAlways")
+
     def ask_for_help(self, player, neighbors, interaction_history):
         if not neighbors:
             return {"favor_size": None, "target": None, "action": "none"}

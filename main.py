@@ -17,7 +17,7 @@ def testGrid():
 
 if __name__ == "__main__":
     # Initialize the grid
-    L = 3  # Grid size
+    L = 5  # Grid size
     N = 1  # Neighborhood radius
     diagonal_neighbors = True  # Include diagonal neighbors
 
@@ -27,10 +27,9 @@ if __name__ == "__main__":
     utility_function = SimpleUtility()
     game = Game(grid, utility_function)
 
-    game.play_rounds(3)
+    game.play_rounds(30)
 
-    #game.display_total_results()  # Display the total results
-    game.summarize_player(2)
-    game.display_utility_grid()
+    analyzer = GameAnalyzer(game)
+    analyzer.analyze_strategy_performance()
+    analyzer.plot_strategy_grid()
 
-    print(game.grid.players[2].interaction_history)
