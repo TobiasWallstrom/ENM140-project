@@ -76,19 +76,32 @@ class ExceptAlwaysStrategy(Strategy):
 class TitForTatStrategy(Strategy):
     def __init__(self):
         super().__init__("Tit-for-Tat")
+        self.favor_size_increment = {}  # Tracks favor size increases for each player
 
     def ask_for_help(self, player, neighbors, interaction_history):
         """
         Decide whom to ask for help based on the Tit-for-Tat principle.
-        Always cooperates unless there's no clear history.
+        Increase favor size with players who cooperated successfully before.
         """
         if not neighbors:
             return {"favor_size": None, "target": None, "action": "none"}
 
-        # Ask the first neighbor in the list with a random favor size
+        # Default favor size
+        default_favor_size = 1
+
+        # Find a neighbor with cooperation history
+        for neighbor in neighbors:
+            # Check the interaction history for successful cooperation
+            for past_partner, outcome in interaction_history:
+                if past_partner == neighbor and outcome == "cooperate":
+                    # Increase favor size for successful cooperation
+                    current_favor_size = self.favor_size_increment.get(neighbor, default_favor_size)
+                    self.favor_size_increment[neighbor] = current_favor_size + 1
+                    return {"favor_size": self.favor_size_increment[neighbor], "target": neighbor, "action": "ask"}
+
+        # Default to asking the first neighbor with default favor size
         target = neighbors[0]
-        favor_size = 1  # Fixed favor size for simplicity
-        return {"favor_size": favor_size, "target": target, "action": "ask"}
+        return {"favor_size": default_favor_size, "target": target, "action": "ask"}
 
     def respond_to_help(self, player, requester_id, favor_size, interaction_history):
         """
@@ -98,10 +111,10 @@ class TitForTatStrategy(Strategy):
         """
         for past_requester_id, outcome in interaction_history:
             if past_requester_id == requester_id:
-                # If requester cooperated before, cooperate
+                # Cooperate if the requester cooperated before
                 if outcome == "cooperate":
                     return True
-                # If requester rejected before, reject
+                # Reject if the requester rejected before
                 elif outcome == "reject":
                     return False
 

@@ -9,7 +9,7 @@ from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
 
 class Game:
-    def __init__(self, grid, utility_function):
+    def __init__(self, grid, utility_function, everyone_can_ask=True):
         """
         Initialize the game with a grid and a utility function.
         :param grid: An instance of GameGrid containing players and neighbors.
@@ -18,6 +18,7 @@ class Game:
         self.grid = grid  # GameGrid instance
         self.utility_function = utility_function  # Utility function instance
         self.history = []  # List to store interaction history for each round
+        self.everyone_can_ask = everyone_can_ask
 
     def one_round(self):
         """
@@ -75,8 +76,9 @@ class Game:
                     player.record_interaction(target_player.id, "got favor")
                     target_player.record_interaction(player.id, "helped with favor")
 
-                    # Mark the target player as interacted
-                    interacted_players.add(target_player.id)
+                    # Mark the target player as interacted if "everyone_can_ask" is False
+                    if not self.everyone_can_ask:
+                        interacted_players.add(target_player.id)
 
                     # Add to round history
                     round_history.append({
@@ -310,20 +312,6 @@ class UtilityFunction:
         :return: Tuple (utility_for_requester, utility_for_responder)
         """
         raise NotImplementedError("This method should be implemented by subclasses.")
-    
-class SimpleUtility(UtilityFunction):
-    def calculate(self, action, favor_size):
-        """
-        Simple utility calculation:
-        - Cooperation: Requester gains +favor_size, responder loses -favor_size.
-        - Rejection: No utility change.
-        """
-        if action == "cooperate":
-            return favor_size, -favor_size*0.5
-        elif action == "reject":
-            return 0, 0
-        else:  # No action
-            return 0, 0
 
 class GameGrid:
     def __init__(self, L, N, diagonal_neighbors=True):

@@ -1,19 +1,19 @@
 import numpy as np
 from backend import *
 
-def testGrid():
-    # Example usage:
-    L = 6  # Size of the grid (LxL)
-    N = 1  # Maximum neighborhood radius
-
-    game = GameGrid(L, N)
-    game.display_grid()  # Displays the grid in 2D format
-
-    # Example: Find neighbors for a specific player by ID using both methods
-    player_id = 8  # Player ID
-    neighbors = game.get_neighbors(player_id)
-
-    print(f"Neighbors of player {player_id}: {neighbors}")
+class SimpleUtility(UtilityFunction):
+    def calculate(self, action, favor_size):
+        """
+        Simple utility calculation:
+        - Cooperation: Requester gains +favor_size, responder loses -favor_size.
+        - Rejection: No utility change.
+        """
+        if action == "cooperate":
+            return favor_size, -favor_size*0.5
+        elif action == "reject":
+            return 0, 0
+        else:  # No action
+            return 0, 0
 
 if __name__ == "__main__":
     # Initialize the grid
@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
     # Initialize the game with a simple utility function
     utility_function = SimpleUtility()
-    game = Game(grid, utility_function)
+    game = Game(grid, utility_function, everyone_can_ask=True)
 
     game.play_rounds(30)
 
