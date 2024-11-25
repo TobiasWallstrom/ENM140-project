@@ -17,7 +17,7 @@ class SimpleUtility(UtilityFunction):
 
 if __name__ == "__main__":
     # Initialize the grid
-    L = 5  # Grid size
+    L = 7  # Grid size
     N = 1  # Neighborhood radius
     diagonal_neighbors = True  # Include diagonal neighbors
 
@@ -27,9 +27,9 @@ if __name__ == "__main__":
     utility_function = SimpleUtility()
     game = Game(grid, utility_function, everyone_can_ask=True)
 
-    game.play_rounds(30)
+    game.play_rounds(70)
 
     analyzer = GameAnalyzer(game)
     analyzer.analyze_strategy_performance()
-    analyzer.plot_strategy_grid()
+    analyzer.plot_strategy_grid(show_arrows=False)
 

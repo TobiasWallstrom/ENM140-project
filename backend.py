@@ -5,7 +5,7 @@ import inspect
 from strategies import *
 from collections import defaultdict
 import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
+from matplotlib.colors import Normalize, ListedColormap
 from matplotlib.cm import ScalarMappable
 
 class Game:
@@ -185,69 +185,11 @@ class GameAnalyzer:
                 row += f"{cooperation_counts[strategy1][strategy2]:15}"
             print(row)
 
-    def display_game_history(self):
+    def plot_strategy_grid(self, show_arrows=True):
         """
-        Display the history of all interactions across all rounds.
-        """
-        print("\n--- Game History ---")
-        for round_num, round_events in enumerate(self.game.history, start=1):
-            print(f"\n--- Round {round_num} ---")
-            if not round_events:
-                print("No interactions in this round.")
-            for event in round_events:
-                initiator = event.get("initiator", None)
-                target = event.get("target", None)
-                action = event.get("action", "none")
-                result = event.get("result", "no_action")
-                favor_size = event.get("favor_size", None)
-
-                print(f"Player {initiator} -> Player {target} | Action: {action} | "
-                      f"Result: {result} | Favor Size: {favor_size}")
-
-    def summarize_player(self, player_id):
-        """
-        Summarize a specific player's history and total utility.
-        :param player_id: ID of the player to summarize.
-        """
-        player = next(p for p in self.game.grid.players if p.id == player_id)
-        total_utility = player.total_utility
-
-        times_asked = 0
-        successful_requests = 0
-        rejected_requests = 0
-
-        print(f"\n--- Summary for Player {player_id} ---")
-        for round_num, round_events in enumerate(self.game.history, start=1):
-            player_events = [event for event in round_events if event["initiator"] == player_id or event["target"] == player_id]
-            if not player_events:
-                print(f"Round {round_num}: No interactions.")
-            else:
-                for event in player_events:
-                    action = event.get("action", "none")
-                    result = event.get("result", "no_action")
-                    target = event.get("target", None)
-                    favor_size = event.get("favor_size", None)
-                    initiator = event.get("initiator", None)
-
-                    if event["target"] == player_id:
-                        times_asked += 1
-                        if result == "cooperate":
-                            successful_requests += 1
-                        elif result == "reject":
-                            rejected_requests += 1
-                        print(f"Round {round_num}: Asked by Player {initiator}, Action = {action}, "
-                              f"Result = {result}, Favor Size = {favor_size}")
-                    elif event["initiator"] == player_id:
-                        print(f"Round {round_num}: Action = {action}, Target = {target}, "
-                              f"Result = {result}, Favor Size = {favor_size}")
-
-        print(f"Total Utility: {total_utility}")
-        print(f"Times Asked for Help: {times_asked} (Cooperated: {successful_requests}, Rejected: {rejected_requests})")
-
-    def plot_strategy_grid(self):
-        """
-        Plot the strategy grid, utilities, and arrows for most frequent cooperation partners.
-        Arrow intensity corresponds to the cooperation frequency percentage.
+        Plot the strategy grid, utilities, and optional arrows for most frequent cooperation partners.
+        Each strategy is assigned a unique color.
+        :param show_arrows: Boolean flag to display arrows for most frequent cooperation partners.
         """
         if self.strategy_partners is None:
             raise ValueError("You must run analyze_strategy_performance() before plotting.")
@@ -255,13 +197,20 @@ class GameAnalyzer:
         # Prepare the grid
         L = self.game.grid.L
         players = self.game.grid.players
-        strategy_grid = np.array([player.strategy_name for player in players]).reshape(L, L)
+        strategy_names = [player.strategy_name for player in players]
+        strategy_grid = np.array(strategy_names).reshape(L, L)
         utility_grid = np.array([player.total_utility for player in players]).reshape(L, L)
 
-        # Plot the grid
+        # Assign unique colors for each strategy
+        unique_strategies = sorted(set(strategy_names))
+        cmap = ListedColormap(plt.cm.tab20(np.linspace(0, 1, len(unique_strategies))))
+        strategy_to_color = {strategy: idx for idx, strategy in enumerate(unique_strategies)}
+        color_grid = np.array([strategy_to_color[player.strategy_name] for player in players]).reshape(L, L)
+
+        # Plot the strategy grid
         fig, ax = plt.subplots(figsize=(10, 10))
-        ax.matshow(utility_grid, cmap="coolwarm", alpha=0.5)
-        ax.set_title("Strategy Grid with Utilities and Cooperation Arrows", pad=20)
+        ax.matshow(color_grid, cmap=cmap, alpha=0.8)
+        ax.set_title("Strategy Grid with Utilities and Optional Cooperation Arrows", pad=20)
 
         # Add strategy names and utilities
         for i in range(L):
@@ -271,32 +220,37 @@ class GameAnalyzer:
                 utility = player.total_utility
                 ax.text(j, i, f"{strategy}\n{utility:.1f}", ha="center", va="center", fontsize=8)
 
-        # Arrow properties
-        norm = Normalize(vmin=0, vmax=1)
-        cmap = plt.cm.viridis
+        # Add optional arrows
+        if show_arrows:
+            norm = Normalize(vmin=0, vmax=1)
+            cmap_arrows = plt.cm.viridis
+            for i in range(L):
+                for j in range(L):
+                    player = players[i * L + j]
+                    if player.id in self.strategy_partners and self.strategy_partners[player.id]:
+                        most_cooperative = max(self.strategy_partners[player.id], key=self.strategy_partners[player.id].get)
+                        partner_count = self.strategy_partners[player.id][most_cooperative]
+                        total_interactions = sum(self.strategy_partners[player.id].values())
+                        intensity = partner_count / total_interactions  # Cooperation percentage
 
-        for i in range(L):
-            for j in range(L):
-                player = players[i * L + j]
-                if player.id in self.strategy_partners and self.strategy_partners[player.id]:
-                    most_cooperative = max(self.strategy_partners[player.id], key=self.strategy_partners[player.id].get)
-                    partner_count = self.strategy_partners[player.id][most_cooperative]
-                    total_interactions = sum(self.strategy_partners[player.id].values())
-                    intensity = partner_count / total_interactions  # Cooperation percentage
+                        partner_pos = divmod(most_cooperative, L)
+                        ax.arrow(
+                            j, i,
+                            partner_pos[1] - j, partner_pos[0] - i,
+                            head_width=0.1, head_length=0.1,
+                            fc=cmap_arrows(norm(intensity)), ec=cmap_arrows(norm(intensity)),
+                            alpha=0.8, length_includes_head=True
+                        )
 
-                    partner_pos = divmod(most_cooperative, L)
-                    ax.arrow(
-                        j, i,
-                        partner_pos[1] - j, partner_pos[0] - i,
-                        head_width=0.1, head_length=0.1,
-                        fc=cmap(norm(intensity)), ec=cmap(norm(intensity)),
-                        alpha=0.8, length_includes_head=True
-                    )
+            # Add colorbar for arrow intensity
+            sm = ScalarMappable(norm=norm, cmap=cmap_arrows)
+            cbar = fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
+            cbar.set_label("Cooperation Intensity (0-1)", rotation=270, labelpad=20)
 
-        # Add colorbar for arrow intensity
-        sm = ScalarMappable(norm=norm, cmap=cmap)
-        cbar = fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
-        cbar.set_label("Cooperation Intensity (0-1)", rotation=270, labelpad=20)
+        # Add legend for strategies
+        legend_labels = [f"{strategy}" for strategy in unique_strategies]
+        handles = [plt.Line2D([0], [0], color=cmap(idx / len(unique_strategies)), lw=4) for idx in range(len(unique_strategies))]
+        #ax.legend(handles, legend_labels, loc='upper right', bbox_to_anchor=(1.3, 1.05))
 
         ax.set_xticks(range(L))
         ax.set_yticks(range(L))
