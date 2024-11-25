@@ -32,4 +32,5 @@ if __name__ == "__main__":
     analyzer = GameAnalyzer(game)
     analyzer.analyze_strategy_performance()
     analyzer.plot_strategy_grid(show_arrows=False)
+    #analyzer.summarize_player(13)
 

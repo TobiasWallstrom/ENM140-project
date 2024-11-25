@@ -92,7 +92,7 @@ class TitForTatStrategy(Strategy):
         # Find a neighbor with cooperation history
         for neighbor in neighbors:
             # Check the interaction history for successful cooperation
-            for past_partner, outcome in interaction_history:
+            for past_partner, outcome, past_favor_size in interaction_history:
                 if past_partner == neighbor and outcome == "cooperate":
                     # Increase favor size for successful cooperation
                     current_favor_size = self.favor_size_increment.get(neighbor, default_favor_size)
@@ -109,7 +109,7 @@ class TitForTatStrategy(Strategy):
         Cooperates if the requester cooperated in the past, otherwise refuses.
         Ignores "busy" outcomes.
         """
-        for past_requester_id, outcome in interaction_history:
+        for past_requester_id, outcome, favor_size in interaction_history:
             if past_requester_id == requester_id:
                 # Cooperate if the requester cooperated before
                 if outcome == "cooperate":

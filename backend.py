@@ -50,8 +50,8 @@ class Game:
 
                 # Skip if the target player has already interacted
                 if target_id in interacted_players:
-                    player.record_interaction(target_id, "busy")
-                    target_player.record_interaction(player.id, "asked for help; was busy")
+                    player.record_interaction(target_id, "busy", favor_size)
+                    target_player.record_interaction(player.id, "asked for help; was busy", favor_size)
                     round_history.append({
                         "initiator": player.id,
                         "target": target_id,
@@ -73,8 +73,8 @@ class Game:
                     target_player.update_utility(utility_responder)
 
                     # Record interactions
-                    player.record_interaction(target_player.id, "got favor")
-                    target_player.record_interaction(player.id, "helped with favor")
+                    player.record_interaction(target_player.id, "got favor", favor_size)
+                    target_player.record_interaction(player.id, "helped with favor", favor_size)
 
                     # Mark the target player as interacted if "everyone_can_ask" is False
                     if not self.everyone_can_ask:
@@ -97,8 +97,8 @@ class Game:
                     target_player.update_utility(utility_responder)
 
                     # Record the rejection
-                    player.record_interaction(target_player.id, "got rejected")
-                    target_player.record_interaction(player.id, "asked for favor; did not help")
+                    player.record_interaction(target_player.id, "got rejected", favor_size)
+                    target_player.record_interaction(player.id, "asked for favor; did not help", favor_size)
 
                     # Add to round history
                     round_history.append({
@@ -109,7 +109,7 @@ class Game:
                         "favor_size": favor_size
                     })
             else:  # No action
-                player.record_interaction(None, "no_action")
+                player.record_interaction(None, "no_action", None)
                 round_history.append({
                     "initiator": player.id,
                     "target": None,
@@ -137,53 +137,108 @@ class GameAnalyzer:
         :param game: The Game instance to analyze.
         """
         self.game = game
-        self.cooperation_counts = None  # Strategy cooperation matrix
-        self.strategy_partners = None  # Most frequent cooperation partners
-        self.strategy_utilities = None  # Strategy utility data
+        self.cooperation_counts = defaultdict(lambda: defaultdict(int))  # Strategy cooperation matrix
+        self.strategy_partners = defaultdict(lambda: defaultdict(int))  # Most frequent cooperation partners
+        self.strategy_utilities = defaultdict(list)  # Strategy utility data
 
     def analyze_strategy_performance(self):
         """
         Analyze and display strategy performance and cooperation dynamics.
         """
-        # Collect utilities by strategy
-        strategy_utilities = defaultdict(list)
-        cooperation_counts = defaultdict(lambda: defaultdict(int))
-        strategy_partners = defaultdict(lambda: defaultdict(int))
+        # Reset analysis attributes
+        self.cooperation_counts.clear()
+        self.strategy_partners.clear()
+        self.strategy_utilities.clear()
 
+        # Collect utilities by strategy
         for player in self.game.grid.players:
-            strategy_utilities[player.strategy_name].append(player.total_utility)
+            self.strategy_utilities[player.strategy_name].append(player.total_utility)
 
         for round_events in self.game.history:
             for event in round_events:
                 if event["result"] == "cooperate":
                     initiator = next(p for p in self.game.grid.players if p.id == event["initiator"])
                     target = next(p for p in self.game.grid.players if p.id == event["target"])
-                    cooperation_counts[initiator.strategy_name][target.strategy_name] += 1
-                    strategy_partners[initiator.id][target.id] += 1
-
-        # Save results for later use
-        self.strategy_utilities = strategy_utilities
-        self.cooperation_counts = cooperation_counts
-        self.strategy_partners = strategy_partners
+                    self.cooperation_counts[initiator.strategy_name][target.strategy_name] += 1
+                    self.strategy_partners[initiator.id][target.id] += 1
 
         # Display results
         print("\n--- Strategy Performance Analysis ---")
-        for strategy, utilities in strategy_utilities.items():
+        for strategy, utilities in self.strategy_utilities.items():
             avg_utility = np.mean(utilities)
             std_utility = np.std(utilities)
             print(f"Strategy: {strategy}, Average Utility: {avg_utility:.2f}, Std Dev: {std_utility:.2f}")
 
-        print(f"\n--- Number of Unique Strategies: {len(strategy_utilities)} ---")
+        print(f"\n--- Number of Unique Strategies: {len(self.strategy_utilities)} ---")
 
         print("\n--- Strategy Cooperation Matrix ---")
-        strategies = sorted(cooperation_counts.keys())
+        strategies = sorted(self.cooperation_counts.keys())
         header = " " * 15 + " ".join(f"{s:15}" for s in strategies)
         print(header)
         for strategy1 in strategies:
             row = f"{strategy1:15}"
             for strategy2 in strategies:
-                row += f"{cooperation_counts[strategy1][strategy2]:15}"
+                row += f"{self.cooperation_counts[strategy1][strategy2]:15}"
             print(row)
+
+    def display_game_history(self):
+        """
+        Display the history of all interactions across all rounds.
+        """
+        print("\n--- Game History ---")
+        for round_num, round_events in enumerate(self.game.history, start=1):
+            print(f"\n--- Round {round_num} ---")
+            if not round_events:
+                print("No interactions in this round.")
+            for event in round_events:
+                initiator = event.get("initiator", None)
+                target = event.get("target", None)
+                action = event.get("action", "none")
+                result = event.get("result", "no_action")
+                favor_size = event.get("favor_size", None)
+
+                print(f"Player {initiator} -> Player {target} | Action: {action} | "
+                      f"Result: {result} | Favor Size: {favor_size}")
+
+    def summarize_player(self, player_id):
+        """
+        Summarize a specific player's history and total utility.
+        :param player_id: ID of the player to summarize.
+        """
+        player = next(p for p in self.game.grid.players if p.id == player_id)
+        total_utility = player.total_utility
+
+        times_asked = 0
+        successful_requests = 0
+        rejected_requests = 0
+
+        print(f"\n--- Summary for Player {player_id} ---")
+        for round_num, round_events in enumerate(self.game.history, start=1):
+            player_events = [event for event in round_events if event["initiator"] == player_id or event["target"] == player_id]
+            if not player_events:
+                print(f"Round {round_num}: No interactions.")
+            else:
+                for event in player_events:
+                    action = event.get("action", "none")
+                    result = event.get("result", "no_action")
+                    target = event.get("target", None)
+                    favor_size = event.get("favor_size", None)
+                    initiator = event.get("initiator", None)
+
+                    if event["target"] == player_id:
+                        times_asked += 1
+                        if result == "cooperate":
+                            successful_requests += 1
+                        elif result == "reject":
+                            rejected_requests += 1
+                        print(f"Round {round_num}: Asked by Player {initiator}, Action = {action}, "
+                              f"Result = {result}, Favor Size: {favor_size}")
+                    elif event["initiator"] == player_id:
+                        print(f"Round {round_num}: Action = {action}, Target = {target}, "
+                              f"Result = {result}, Favor Size: {favor_size}")
+
+        print(f"Total Utility: {total_utility}")
+        print(f"Times Asked for Help: {times_asked} (Cooperated: {successful_requests}, Rejected: {rejected_requests})")
 
     def plot_strategy_grid(self, show_arrows=True):
         """
@@ -191,7 +246,7 @@ class GameAnalyzer:
         Each strategy is assigned a unique color.
         :param show_arrows: Boolean flag to display arrows for most frequent cooperation partners.
         """
-        if self.strategy_partners is None:
+        if not self.strategy_partners:
             raise ValueError("You must run analyze_strategy_performance() before plotting.")
 
         # Prepare the grid
@@ -250,12 +305,13 @@ class GameAnalyzer:
         # Add legend for strategies
         legend_labels = [f"{strategy}" for strategy in unique_strategies]
         handles = [plt.Line2D([0], [0], color=cmap(idx / len(unique_strategies)), lw=4) for idx in range(len(unique_strategies))]
-        #ax.legend(handles, legend_labels, loc='upper right', bbox_to_anchor=(1.3, 1.05))
+        ax.legend(handles, legend_labels, loc='upper right', bbox_to_anchor=(1.3, 1.05))
 
         ax.set_xticks(range(L))
         ax.set_yticks(range(L))
         ax.xaxis.set_ticks_position('bottom')
         plt.show()
+
 
 class UtilityFunction:
     def calculate(self, action, favor_size):
@@ -385,11 +441,12 @@ class Player:
         """
         self.total_utility += utility_change
 
-    def record_interaction(self, other_player_id, outcome):
+    def record_interaction(self, other_player_id, outcome, favor_size):
         """
         Record the result of an interaction with another player.
         :param other_player_id: ID of the other player.
         :param outcome: Result of the interaction (e.g., "cooperate", "reject").
+        :param favor_size: Size of the favor involved in the interaction (if applicable)
         """
-        self.interaction_history.append((other_player_id, outcome))
+        self.interaction_history.append((other_player_id, outcome, favor_size))
 
