@@ -60,7 +60,7 @@ class RandomStrategy(Strategy):
         # Always help
         return True
     
-class ExceptAlwaysStrategy(Strategy):
+class AcceptAlwaysStrategy(Strategy):
     def __init__(self):
         super().__init__("ExceptAlways")
 
@@ -109,7 +109,7 @@ class TitForTatStrategy(Strategy):
         Cooperates if the requester cooperated in the past, otherwise refuses.
         Ignores "busy" outcomes.
         """
-        for past_requester_id, outcome, favor_size in interaction_history:
+        for past_requester_id, outcome, favor_size in interaction_history[::-1]:
             if past_requester_id == requester_id:
                 # Cooperate if the requester cooperated before
                 if outcome == "cooperate":

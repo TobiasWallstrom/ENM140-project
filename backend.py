@@ -361,7 +361,7 @@ class GameGrid:
         This method can be extended or modified for custom logic.
         """
         strategies = [RandomStrategy(), SelfishStrategy()]
-        strategies = [ExceptAlwaysStrategy()]
+        strategies = [AcceptAlwaysStrategy()]
         return random.choice(strategies)
 
     def shuffle_players(self):
