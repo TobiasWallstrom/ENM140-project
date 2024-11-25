@@ -30,6 +30,58 @@ class Strategy:
         """
         raise NotImplementedError("This method should be implemented by subclasses.")
 
+    def get_best_friend_stats(self, interaction_history):
+        """
+        Analyze interaction history to extract stats for the most cooperated neighbor:
+        - The neighbor with the highest cooperation count ("best friend").
+        - The highest favor size involved with this neighbor.
+        - The last favor size exchanged with this neighbor.
+
+        :param interaction_history: List of past interactions [(neighbor_id, outcome, favor_size)].
+        :return: Dictionary containing:
+            {
+                "best_friend": (neighbor_id or None),
+                "cooperation_count": (int or 0),
+                "highest_favor_size": (int or None),
+                "last_favor_size": (int or None)
+            }
+        """
+        # Count cooperations for each neighbor and track favor sizes
+        cooperation_count = {}
+        favor_sizes_by_neighbor = {}
+        last_favors = {}
+
+        for neighbor_id, outcome, favor_size in interaction_history:
+            if outcome == "cooperate":
+                # Count cooperations
+                cooperation_count[neighbor_id] = cooperation_count.get(neighbor_id, 0) + 1
+                # Track all favor sizes
+                if neighbor_id not in favor_sizes_by_neighbor:
+                    favor_sizes_by_neighbor[neighbor_id] = []
+                favor_sizes_by_neighbor[neighbor_id].append(favor_size)
+            # Track the last favor size
+            last_favors[neighbor_id] = favor_size
+
+        # Find the neighbor with the highest cooperation count
+        if not cooperation_count:
+            return {
+                "best_friend": None,
+                "cooperation_count": 0,
+                "highest_favor_size": None,
+                "last_favor_size": None,
+            }
+
+        best_friend = max(cooperation_count, key=cooperation_count.get)
+        highest_favor_size = max(favor_sizes_by_neighbor[best_friend])
+        last_favor_size = last_favors.get(best_friend, None)
+
+        return {
+            "best_friend": best_friend,
+            "cooperation_count": cooperation_count[best_friend],
+            "highest_favor_size": highest_favor_size,
+            "last_favor_size": last_favor_size,
+        }
+
 class SelfishStrategy(Strategy):
     def __init__(self):
         super().__init__("Selfish")
