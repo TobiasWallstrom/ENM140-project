@@ -62,7 +62,7 @@ class RandomStrategy(Strategy):
     
 class AcceptAlwaysStrategy(Strategy):
     def __init__(self):
-        super().__init__("ExceptAlways")
+        super().__init__("AcceptAlways")
 
     def ask_for_help(self, player, neighbors, interaction_history):
         if not neighbors:
