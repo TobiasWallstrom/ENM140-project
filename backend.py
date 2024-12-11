@@ -84,12 +84,9 @@ class StrategyGenerator:
                 situations.append(("help", fs, r))
         return situations
 
-    def _is_logical(self, decisions):
+    def is_logical(self, decisions):
         """
         Check if a strategy is logical.
-        A strategy is logical if:
-        - It does not ask for large favors but ignores small favors.
-        - It does not help with large favors but ignores small favors.
         """
         ask_small = decisions.get(("ask", self.favor_sizes[0]), 0)
         ask_large = decisions.get(("ask", self.favor_sizes[1]), 0)
@@ -104,7 +101,7 @@ class StrategyGenerator:
             help_large = decisions.get(("help", self.favor_sizes[1], r), 0)
             if not help_small and help_large:  # Helps with large favors but ignores small ones
                 return False
-            
+
         # Logical check for helping if the player has a negative reputation
         for fs in self.favor_sizes:
             help_bad = decisions.get(("help", fs, -1), 0)
@@ -119,7 +116,7 @@ class StrategyGenerator:
         strategies = []
         for decision_vector in itertools.product([0, 1], repeat=num_situations):
             decisions = dict(zip(self.situations, decision_vector))
-            if not self.filter_strategies or self._is_logical(decisions):
+            if not self.filter_strategies or self.is_logical(decisions):
                 strategies.append(self._create_strategy(decisions))
         return strategies
 
@@ -131,26 +128,72 @@ class StrategyGenerator:
         """
 
         class DynamicStrategy:
-            def __init__(self):
-                # Insert a '-' after the second character in the binary code
-                raw_name = "".join(map(str, decisions.values()))
+            def __init__(self, decisions, strategy_generator):
+                self.decisions = decisions  # Store decisions as a parameter
+                self.strategy_generator = strategy_generator  # Reference to the generator
+                self.update_bitcode()
+
+            def update_bitcode(self):
+                """Update the bitcode and name based on current decisions."""
+                raw_name = "".join(map(str, self.decisions.values()))
+                self.bitcode = raw_name
                 self.name = raw_name[:2] + "-" + raw_name[2:]
+
+            @property
+            def bitcode(self):
+                return self._bitcode
+
+            @bitcode.setter
+            def bitcode(self, new_bitcode):
+                """Update decisions based on the new bitcode."""
+                self._bitcode = new_bitcode
+                if len(new_bitcode) == len(self.decisions):
+                    # Update decisions if the new bitcode matches the expected length
+                    values = list(map(int, new_bitcode))
+                    self.decisions = dict(zip(self.decisions.keys(), values))
+
+            def flip_random_bit(self):
+                """Flip a random bit in the bitcode and ensure the resulting decisions are logical."""
+
+                bit_list = list(self.bitcode)
+                tried_indices = set()
+
+                while len(tried_indices) < len(bit_list):
+                    # Select a random bit to flip
+                    n = random.randint(0, len(bit_list) - 1)
+                    if n in tried_indices:
+                        continue
+
+                    tried_indices.add(n)
+
+                    # Flip the bit
+                    bit_list[n] = '1' if bit_list[n] == '0' else '0'
+                    self.bitcode = "".join(bit_list)
+
+                    # Check if the updated decisions are logical
+                    if self.strategy_generator.is_logical(self.decisions):
+                        self.update_bitcode()
+                        return
+
+                    # Revert the bit if not logical
+                    bit_list[n] = '1' if bit_list[n] == '0' else '0'
+
+                raise ValueError("Unable to find a logical bit flip after trying all bits.")
 
             def ask_for_help(self, player, neighbors):
                 favor_size = random.choices([1, 3], weights=[0.5, 0.5])[0]
-                if ("ask", favor_size) in decisions and decisions[("ask", favor_size)] == 1 and neighbors:
+                if ("ask", favor_size) in self.decisions and self.decisions[("ask", favor_size)] == 1 and neighbors:
                     best_neighbors = [
                         n for n in neighbors if n.public_reputation == max(neighbors, key=lambda n: n.public_reputation).public_reputation
                     ]
                     chosen_neighbor = random.choice(best_neighbors) if len(best_neighbors) > 1 else best_neighbors[0]
-                    chosen_neighbor = random.choice(neighbors)
                     return {"favor_size": favor_size, "target": chosen_neighbor.id, "action": "ask"}
                 return {"favor_size": None, "target": None, "action": "none"}
 
             def respond_to_help(self, player, requester_id, favor_size):
-                return decisions.get(("help", favor_size, player.public_reputation), 0) == 1
+                return self.decisions.get(("help", favor_size, player.public_reputation), 0) == 1
 
-        return DynamicStrategy()
+        return DynamicStrategy(decisions, self)
 
 class Player:
     def __init__(self, player_id, strategy):
@@ -183,7 +226,7 @@ class Player:
         return self.strategy.respond_to_help(self, requester_id, favor_size)
 
 class GameGrid:
-    def __init__(self, L, N, diagonal_neighbors=True, strategy_generator=None):
+    def __init__(self, L, N, strategy_generator = None, diagonal_neighbors=True):
         self.L = L
         self.N = N
         self.diagonal_neighbors = diagonal_neighbors
@@ -265,15 +308,20 @@ class UtilityFunction:
         raise NotImplementedError("This method should be implemented by subclasses.")
 
 class Evolution:
-    def __init__(self, game, inverse_mutation_probability):
+    def __init__(self, game, inverse_copy_prob, inverse_mutation_prob, random_mutation=True):
         """
         Initialize the Evolution class.
         :param game: The Game instance.
-        :param inverse_mutation_probability: The inverse probability for a mutation to occur.
+        :param inverse_copy_prob: The inverse probability for a mutation to occur.
         """
         self.game = game
-        self.inverse_mutation_probability = inverse_mutation_probability
+        self.inverse_copy_prob = inverse_copy_prob
+        self.inverse_mutation_prob = inverse_mutation_prob
         self.running = False  # Control flag for the evolution process
+        if random_mutation:
+            self._mutate = self._mutate_both
+        else:
+            self._mutate = self._mutate_copy
 
     def run_interactive(self):
         """
@@ -333,14 +381,14 @@ class Evolution:
         """Stop the evolution."""
         self.running = False
 
-    def _mutate(self):
+    def _mutate_copy(self):
         """
         Execute mutation for each player in the grid based on the average utility per round
         for the last x rounds. A player does not change their strategy if their average utility
         is equal to or higher than the best neighbor.
         """
         for player in self.game.grid.players:
-            if np.random.rand() < 1 / self.inverse_mutation_probability:
+            if np.random.rand() < 1 / self.inverse_copy_prob:
                 # Check if player has neighbors
                 if not player.neighbors:
                     continue  # Skip mutation if no neighbors
@@ -360,6 +408,13 @@ class Evolution:
                 player.strategy_name = best_neighbor.strategy_name
                 player.real_reputation = 0 # best_neighbor.real_reputation #try it out
 
+    def _mutate_both(self):
+        self._mutate_copy()
+        for player in self.game.grid.players:
+            if np.random.rand() < 1 / self.inverse_mutation_prob:
+                player.strategy.flip_random_bit()
+                player.strategy_name = player.strategy.name
+                
     def _get_strategy_grid(self):
         """Return the strategy grid as a 2D numpy array."""
         return np.array([
