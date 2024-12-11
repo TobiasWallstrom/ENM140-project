@@ -21,7 +21,7 @@ class SimpleUtility(UtilityFunction):
         - Rejection: No utility change.
         """
         if action == "cooperate":
-            return favor_size, -favor_size*0.5
+            return favor_size, -favor_size*0.25
         elif action == "reject":
             return 0, 0
         else:  # No action
@@ -36,10 +36,10 @@ class ReputationManager:
 
     def update_reputation(self, player, action, favor_size):
         if action == "accept":
-            reputation_change = self.gain_base * favor_size * (1 + player.real_reputation/2)
+            reputation_change = self.gain_base * favor_size
             player.real_reputation = min(self.max_reputation, player.real_reputation + reputation_change)
         elif action == "reject":
-            reputation_change = self.loss_base * favor_size * (1 + player.real_reputation/2)
+            reputation_change = self.loss_base * favor_size * (1 + player.real_reputation)
             player.real_reputation = max(self.min_reputation, player.real_reputation - reputation_change)
         player.public_reputation = 1 if player.real_reputation >= 0 else -1
 
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     reputation_manager = ReputationManager()
     game = Game(grid, utility_function, reputation_manager)
 
-    evolution = Evolution(game, inverse_mutation_probability=80)
+    evolution = Evolution(game, inverse_mutation_probability=50)
     evolution.run_interactive()
     
 

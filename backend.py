@@ -104,6 +104,13 @@ class StrategyGenerator:
             help_large = decisions.get(("help", self.favor_sizes[1], r), 0)
             if not help_small and help_large:  # Helps with large favors but ignores small ones
                 return False
+            
+        # Logical check for helping if the player has a negative reputation
+        for fs in self.favor_sizes:
+            help_bad = decisions.get(("help", fs, -1), 0)
+            help_good = decisions.get(("help", fs, 1), 0)
+            if help_bad and not help_good:
+                return False
 
         return True
 
@@ -136,6 +143,7 @@ class StrategyGenerator:
                         n for n in neighbors if n.public_reputation == max(neighbors, key=lambda n: n.public_reputation).public_reputation
                     ]
                     chosen_neighbor = random.choice(best_neighbors) if len(best_neighbors) > 1 else best_neighbors[0]
+                    chosen_neighbor = random.choice(neighbors)
                     return {"favor_size": favor_size, "target": chosen_neighbor.id, "action": "ask"}
                 return {"favor_size": None, "target": None, "action": "none"}
 
@@ -350,6 +358,7 @@ class Evolution:
                 # Adopt the strategy of the best-performing neighbor
                 player.strategy = best_neighbor.strategy
                 player.strategy_name = best_neighbor.strategy_name
+                player.real_reputation = 0 # best_neighbor.real_reputation #try it out
 
     def _get_strategy_grid(self):
         """Return the strategy grid as a 2D numpy array."""
