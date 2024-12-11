@@ -1,5 +1,17 @@
 import numpy as np
 from backend import *
+import signal
+import sys
+import matplotlib
+
+# Erzwinge das Tkinter-Backend
+matplotlib.use("TkAgg")
+
+def signal_handler(sig, frame):
+    print("Exiting...")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
 
 class SimpleUtility(UtilityFunction):
     def calculate(self, action, favor_size):
@@ -14,23 +26,43 @@ class SimpleUtility(UtilityFunction):
             return 0, 0
         else:  # No action
             return 0, 0
+        
+class ReputationManager:
+    def __init__(self, gain_base=0.1, loss_base=0.1, min_reputation=-1.0, max_reputation=1.0):
+        self.gain_base = gain_base
+        self.loss_base = loss_base
+        self.min_reputation = min_reputation
+        self.max_reputation = max_reputation
+
+    def update_reputation(self, player, action, favor_size):
+        if action == "accept":
+            reputation_change = self.gain_base * favor_size * (1 + player.real_reputation/2)
+            player.real_reputation = min(self.max_reputation, player.real_reputation + reputation_change)
+        elif action == "reject":
+            reputation_change = self.loss_base * favor_size * (1 + player.real_reputation/2)
+            player.real_reputation = max(self.min_reputation, player.real_reputation - reputation_change)
+        player.public_reputation = 1 if player.real_reputation >= 0 else -1
 
 if __name__ == "__main__":
-    # Initialize the grid
-    L = 7  # Grid size
-    N = 1  # Neighborhood radius
-    diagonal_neighbors = True  # Include diagonal neighbors
+    L = 10  # Grid size
+    N = 1   # Neighborhood radius
 
-    grid = GameGrid(L, N, diagonal_neighbors)
+    # Strategy generator that returns new strategy instances
+    def strategy_generator():
+        return random.choice(strategy_generator_instance.generate_all_strategies())
 
-    # Initialize the game with a simple utility function
+    strategy_generator_instance = StrategyGenerator(
+        favor_sizes=[1, 3],
+        reputation_values=[-1, 1]
+    )
+
+    grid = GameGrid(L, N, diagonal_neighbors=True, strategy_generator=strategy_generator)
     utility_function = SimpleUtility()
-    game = Game(grid, utility_function, everyone_can_ask=True)
+    reputation_manager = ReputationManager()
+    game = Game(grid, utility_function, reputation_manager)
 
-    game.play_rounds(70)
+    evolution = Evolution(game, inverse_mutation_probability=80)
+    evolution.run_interactive()
+    
 
-    analyzer = GameAnalyzer(game)
-    analyzer.analyze_strategy_performance()
-    analyzer.plot_strategy_grid(show_arrows=False)
-    #analyzer.summarize_player(13)
-
+    

@@ -1,317 +1,250 @@
 import numpy as np
 import random
-import importlib
-import inspect
-from strategies import *
+import itertools
 from collections import defaultdict
 import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize, ListedColormap
-from matplotlib.cm import ScalarMappable
-
-class Game:
-    def __init__(self, grid, utility_function, everyone_can_ask=True):
-        """
-        Initialize the game with a grid and a utility function.
-        :param grid: An instance of GameGrid containing players and neighbors.
-        :param utility_function: An instance of UtilityFunction to calculate utility changes.
-        """
-        self.grid = grid  # GameGrid instance
-        self.utility_function = utility_function  # Utility function instance
-        self.history = []  # List to store interaction history for each round
-        self.everyone_can_ask = everyone_can_ask
-
-    def one_round(self):
-        """
-        Play one round of the game. Each player can ask for help or respond to requests.
-        """
-        players_in_order = self.grid.shuffle_players()  # Randomized player order
-        interacted_players = set()  # Track players who have already interacted
-        round_history = []  # Store events for this round
-
-        for player in players_in_order:
-            # Skip if the player has already interacted
-            if player.id in interacted_players:
-                continue
-
-            # Add player to the list of interacted players
-            interacted_players.add(player.id)
-
-            # Get the player's neighbors
-            neighbors = self.grid.get_neighbors(player.id)
-
-            # Ask the strategy if the player wants to ask for help
-            ask_decision = player.decide_ask_for_help(neighbors)
-            if ask_decision["action"] == "ask":
-                target_id = ask_decision["target"]
-                favor_size = ask_decision["favor_size"]
-
-                # Find the target player
-                target_player = next(p for p in self.grid.players if p.id == target_id)
-
-                # Skip if the target player has already interacted
-                if target_id in interacted_players:
-                    player.record_interaction(target_id, "busy", favor_size)
-                    target_player.record_interaction(player.id, "asked for help; was busy", favor_size)
-                    round_history.append({
-                        "initiator": player.id,
-                        "target": target_id,
-                        "action": "ask",
-                        "result": "busy",
-                        "favor_size": favor_size
-                    })
-                    continue
-
-                # Ask the target player if they will help
-                response = target_player.decide_respond_to_help(player.id, favor_size)
-                
-                if response:  # Cooperation
-                    # Calculate utility changes
-                    utility_requester, utility_responder = self.utility_function.calculate("cooperate", favor_size)
-
-                    # Update utilities for both players
-                    player.update_utility(utility_requester)
-                    target_player.update_utility(utility_responder)
-
-                    # Record interactions
-                    player.record_interaction(target_player.id, "got favor", favor_size)
-                    target_player.record_interaction(player.id, "helped with favor", favor_size)
-
-                    # Mark the target player as interacted if "everyone_can_ask" is False
-                    if not self.everyone_can_ask:
-                        interacted_players.add(target_player.id)
-
-                    # Add to round history
-                    round_history.append({
-                        "initiator": player.id,
-                        "target": target_id,
-                        "action": "ask",
-                        "result": "cooperate",
-                        "favor_size": favor_size
-                    })
-                else:  # Rejection
-                    # Calculate utility changes for rejection
-                    utility_requester, utility_responder = self.utility_function.calculate("reject", favor_size)
-
-                    # Update utilities (typically no change, but flexible)
-                    player.update_utility(utility_requester)
-                    target_player.update_utility(utility_responder)
-
-                    # Record the rejection
-                    player.record_interaction(target_player.id, "got rejected", favor_size)
-                    target_player.record_interaction(player.id, "asked for favor; did not help", favor_size)
-
-                    # Add to round history
-                    round_history.append({
-                        "initiator": player.id,
-                        "target": target_id,
-                        "action": "ask",
-                        "result": "reject",
-                        "favor_size": favor_size
-                    })
-            else:  # No action
-                player.record_interaction(None, "no_action", None)
-                round_history.append({
-                    "initiator": player.id,
-                    "target": None,
-                    "action": "none",
-                    "result": "no_action",
-                    "favor_size": None
-                })
-
-        # Append this round's history to the game history
-        self.history.append(round_history)
-
-    def play_rounds(self, num_rounds):
-        """
-        Play multiple rounds of the game.
-        :param num_rounds: Number of rounds to play.
-        """
-        for round_number in range(1, num_rounds + 1):
-            #print(f"\n--- Round {round_number} ---")
-            self.one_round()
+from matplotlib.widgets import Button
+import threading
 
 class GameAnalyzer:
     def __init__(self, game):
         """
-        Initialize the GameAnalyzer with a Game instance.
-        :param game: The Game instance to analyze.
+        Initialize the GameAnalyzer with a game instance.
+        :param game: The game instance to analyze.
         """
         self.game = game
-        self.cooperation_counts = defaultdict(lambda: defaultdict(int))  # Strategy cooperation matrix
-        self.strategy_partners = defaultdict(lambda: defaultdict(int))  # Most frequent cooperation partners
-        self.strategy_utilities = defaultdict(list)  # Strategy utility data
 
-    def analyze_strategy_performance(self):
+    def average_utility_per_strategy(self):
         """
-        Analyze and display strategy performance and cooperation dynamics.
+        Calculate the average utility for each strategy.
+        :return: A dictionary with strategy names as keys and their average utility as values.
         """
-        # Reset analysis attributes
-        self.cooperation_counts.clear()
-        self.strategy_partners.clear()
-        self.strategy_utilities.clear()
-
-        # Collect utilities by strategy
+        strategy_utilities = defaultdict(list)
         for player in self.game.grid.players:
-            self.strategy_utilities[player.strategy_name].append(player.total_utility)
+            strategy_utilities[player.strategy_name].append(player.total_utility)
 
-        for round_events in self.game.history:
-            for event in round_events:
-                if event["result"] == "cooperate":
-                    initiator = next(p for p in self.game.grid.players if p.id == event["initiator"])
-                    target = next(p for p in self.game.grid.players if p.id == event["target"])
-                    self.cooperation_counts[initiator.strategy_name][target.strategy_name] += 1
-                    self.strategy_partners[initiator.id][target.id] += 1
+        # Calculate average utility for each strategy
+        return {
+            strategy: sum(utilities) / len(utilities) if utilities else 0
+            for strategy, utilities in strategy_utilities.items()
+        }
 
-        # Display results
-        print("\n--- Strategy Performance Analysis ---")
-        for strategy, utilities in self.strategy_utilities.items():
-            avg_utility = np.mean(utilities)
-            std_utility = np.std(utilities)
-            print(f"Strategy: {strategy}, Average Utility: {avg_utility:.2f}, Std Dev: {std_utility:.2f}")
-
-        print(f"\n--- Number of Unique Strategies: {len(self.strategy_utilities)} ---")
-
-        print("\n--- Strategy Cooperation Matrix ---")
-        strategies = sorted(self.cooperation_counts.keys())
-        header = " " * 15 + " ".join(f"{s:15}" for s in strategies)
-        print(header)
-        for strategy1 in strategies:
-            row = f"{strategy1:15}"
-            for strategy2 in strategies:
-                row += f"{self.cooperation_counts[strategy1][strategy2]:15}"
-            print(row)
-
-    def display_game_history(self):
+    def reputation_distribution(self):
         """
-        Display the history of all interactions across all rounds.
+        Calculate the distribution of public reputations.
+        :return: A dictionary with counts of each reputation value.
         """
-        print("\n--- Game History ---")
-        for round_num, round_events in enumerate(self.game.history, start=1):
-            print(f"\n--- Round {round_num} ---")
-            if not round_events:
-                print("No interactions in this round.")
-            for event in round_events:
-                initiator = event.get("initiator", None)
-                target = event.get("target", None)
-                action = event.get("action", "none")
-                result = event.get("result", "no_action")
-                favor_size = event.get("favor_size", None)
+        reputation_counts = defaultdict(int)
+        for player in self.game.grid.players:
+            reputation_counts[player.public_reputation] += 1
+        return dict(reputation_counts)
 
-                print(f"Player {initiator} -> Player {target} | Action: {action} | "
-                      f"Result: {result} | Favor Size: {favor_size}")
-
-    def summarize_player(self, player_id):
+    def print_report(self):
         """
-        Summarize a specific player's history and total utility.
-        :param player_id: ID of the player to summarize.
+        Print a detailed report of the game results, including:
+        - Average utility per strategy
+        - Reputation distribution
         """
-        player = next(p for p in self.game.grid.players if p.id == player_id)
-        total_utility = player.total_utility
+        print("Game Analysis Report")
+        print("=" * 30)
 
-        times_asked = 0
-        successful_requests = 0
-        rejected_requests = 0
+        # Average utility per strategy
+        print("\nAverage Utility Per Strategy:")
+        average_utilities = self.average_utility_per_strategy()
+        for strategy, avg_utility in average_utilities.items():
+            print(f"{strategy}: {avg_utility:.2f}")
 
-        print(f"\n--- Summary for Player {player_id} ---")
-        for round_num, round_events in enumerate(self.game.history, start=1):
-            player_events = [event for event in round_events if event["initiator"] == player_id or event["target"] == player_id]
-            if not player_events:
-                print(f"Round {round_num}: No interactions.")
-            else:
-                for event in player_events:
-                    action = event.get("action", "none")
-                    result = event.get("result", "no_action")
-                    target = event.get("target", None)
-                    favor_size = event.get("favor_size", None)
-                    initiator = event.get("initiator", None)
+        # Reputation distribution
+        print("\nReputation Distribution:")
+        reputation_dist = self.reputation_distribution()
+        for reputation, count in reputation_dist.items():
+            print(f"Reputation {reputation}: {count} players")
 
-                    if event["target"] == player_id:
-                        times_asked += 1
-                        if result == "cooperate":
-                            successful_requests += 1
-                        elif result == "reject":
-                            rejected_requests += 1
-                        print(f"Round {round_num}: Asked by Player {initiator}, Action = {action}, "
-                              f"Result = {result}, Favor Size: {favor_size}")
-                    elif event["initiator"] == player_id:
-                        print(f"Round {round_num}: Action = {action}, Target = {target}, "
-                              f"Result = {result}, Favor Size: {favor_size}")
+        print("=" * 30)
 
-        print(f"Total Utility: {total_utility}")
-        print(f"Times Asked for Help: {times_asked} (Cooperated: {successful_requests}, Rejected: {rejected_requests})")
-
-    def plot_strategy_grid(self, show_arrows=True):
+class StrategyGenerator:
+    def __init__(self, favor_sizes, reputation_values, filter_strategies=True):
         """
-        Plot the strategy grid, utilities, and optional arrows for most frequent cooperation partners.
-        Each strategy is assigned a unique color.
-        :param show_arrows: Boolean flag to display arrows for most frequent cooperation partners.
+        Initialize the StrategyGenerator.
+        :param favor_sizes: List of possible favor sizes.
+        :param reputation_values: List of possible reputation values.
+        :param filter_strategies: Boolean indicating whether to filter unlogical strategies.
         """
-        if not self.strategy_partners:
-            raise ValueError("You must run analyze_strategy_performance() before plotting.")
+        self.favor_sizes = favor_sizes
+        self.reputation_values = reputation_values
+        self.situations = self._define_situations()
+        self.filter_strategies = filter_strategies
 
-        # Prepare the grid
-        L = self.game.grid.L
-        players = self.game.grid.players
-        strategy_names = [player.strategy_name for player in players]
-        strategy_grid = np.array(strategy_names).reshape(L, L)
-        utility_grid = np.array([player.total_utility for player in players]).reshape(L, L)
+    def _define_situations(self):
+        situations = []
+        for fs in self.favor_sizes:
+            situations.append(("ask", fs))
+        for fs in self.favor_sizes:
+            for r in self.reputation_values:
+                situations.append(("help", fs, r))
+        return situations
 
-        # Assign unique colors for each strategy
-        unique_strategies = sorted(set(strategy_names))
-        cmap = ListedColormap(plt.cm.tab20(np.linspace(0, 1, len(unique_strategies))))
-        strategy_to_color = {strategy: idx for idx, strategy in enumerate(unique_strategies)}
-        color_grid = np.array([strategy_to_color[player.strategy_name] for player in players]).reshape(L, L)
+    def _is_logical(self, decisions):
+        """
+        Check if a strategy is logical.
+        A strategy is logical if:
+        - It does not ask for large favors but ignores small favors.
+        - It does not help with large favors but ignores small favors.
+        """
+        ask_small = decisions.get(("ask", self.favor_sizes[0]), 0)
+        ask_large = decisions.get(("ask", self.favor_sizes[1]), 0)
 
-        # Plot the strategy grid
-        fig, ax = plt.subplots(figsize=(10, 10))
-        ax.matshow(color_grid, cmap=cmap, alpha=0.8)
-        ax.set_title("Strategy Grid with Utilities and Optional Cooperation Arrows", pad=20)
+        # Logical check for asking
+        if not ask_small and ask_large:  # Asks for large favors but ignores small ones
+            return False
 
-        # Add strategy names and utilities
-        for i in range(L):
-            for j in range(L):
-                player = players[i * L + j]
-                strategy = player.strategy_name
-                utility = player.total_utility
-                ax.text(j, i, f"{strategy}\n{utility:.1f}", ha="center", va="center", fontsize=8)
+        # Logical check for helping
+        for r in self.reputation_values:
+            help_small = decisions.get(("help", self.favor_sizes[0], r), 0)
+            help_large = decisions.get(("help", self.favor_sizes[1], r), 0)
+            if not help_small and help_large:  # Helps with large favors but ignores small ones
+                return False
 
-        # Add optional arrows
-        if show_arrows:
-            norm = Normalize(vmin=0, vmax=1)
-            cmap_arrows = plt.cm.viridis
-            for i in range(L):
-                for j in range(L):
-                    player = players[i * L + j]
-                    if player.id in self.strategy_partners and self.strategy_partners[player.id]:
-                        most_cooperative = max(self.strategy_partners[player.id], key=self.strategy_partners[player.id].get)
-                        partner_count = self.strategy_partners[player.id][most_cooperative]
-                        total_interactions = sum(self.strategy_partners[player.id].values())
-                        intensity = partner_count / total_interactions  # Cooperation percentage
+        return True
 
-                        partner_pos = divmod(most_cooperative, L)
-                        ax.arrow(
-                            j, i,
-                            partner_pos[1] - j, partner_pos[0] - i,
-                            head_width=0.1, head_length=0.1,
-                            fc=cmap_arrows(norm(intensity)), ec=cmap_arrows(norm(intensity)),
-                            alpha=0.8, length_includes_head=True
-                        )
+    def generate_all_strategies(self):
+        num_situations = len(self.situations)
+        strategies = []
+        for decision_vector in itertools.product([0, 1], repeat=num_situations):
+            decisions = dict(zip(self.situations, decision_vector))
+            if not self.filter_strategies or self._is_logical(decisions):
+                strategies.append(self._create_strategy(decisions))
+        return strategies
 
-            # Add colorbar for arrow intensity
-            sm = ScalarMappable(norm=norm, cmap=cmap_arrows)
-            cbar = fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
-            cbar.set_label("Cooperation Intensity (0-1)", rotation=270, labelpad=20)
+    def _create_strategy(self, decisions):
+        """
+        Create a dynamic strategy based on decisions.
+        :param decisions: Dictionary mapping situations to binary decisions.
+        :return: A dynamic strategy instance.
+        """
 
-        # Add legend for strategies
-        legend_labels = [f"{strategy}" for strategy in unique_strategies]
-        handles = [plt.Line2D([0], [0], color=cmap(idx / len(unique_strategies)), lw=4) for idx in range(len(unique_strategies))]
-        ax.legend(handles, legend_labels, loc='upper right', bbox_to_anchor=(1.3, 1.05))
+        class DynamicStrategy:
+            def __init__(self):
+                # Insert a '-' after the second character in the binary code
+                raw_name = "".join(map(str, decisions.values()))
+                self.name = raw_name[:2] + "-" + raw_name[2:]
 
-        ax.set_xticks(range(L))
-        ax.set_yticks(range(L))
-        ax.xaxis.set_ticks_position('bottom')
-        plt.show()
+            def ask_for_help(self, player, neighbors):
+                favor_size = random.choices([1, 3], weights=[0.5, 0.5])[0]
+                if ("ask", favor_size) in decisions and decisions[("ask", favor_size)] == 1 and neighbors:
+                    best_neighbors = [
+                        n for n in neighbors if n.public_reputation == max(neighbors, key=lambda n: n.public_reputation).public_reputation
+                    ]
+                    chosen_neighbor = random.choice(best_neighbors) if len(best_neighbors) > 1 else best_neighbors[0]
+                    return {"favor_size": favor_size, "target": chosen_neighbor.id, "action": "ask"}
+                return {"favor_size": None, "target": None, "action": "none"}
 
+            def respond_to_help(self, player, requester_id, favor_size):
+                return decisions.get(("help", favor_size, player.public_reputation), 0) == 1
+
+        return DynamicStrategy()
+
+class Player:
+    def __init__(self, player_id, strategy):
+        self.id = player_id
+        self.strategy = strategy
+        self.strategy_name = strategy.name
+        self.total_utility = 0
+        self.real_reputation = 0.0  # Real reputation as a floating-point value
+        self.public_reputation = 0  # Public reputation as a discrete value (-1 or 1)
+        self.neighbors = []  # List of neighboring players
+        self.recent_utilities = []  # Utilities from the last x rounds
+        self.max_recent_rounds = 20  # Maximum number of recent rounds to track
+
+    def update_utility(self, utility_change):
+        self.total_utility += utility_change
+        self.recent_utilities.append(utility_change)
+        # Keep only the last x rounds
+        if len(self.recent_utilities) > self.max_recent_rounds:
+            self.recent_utilities.pop(0)
+
+    def get_average_utility_per_round(self):
+        if len(self.recent_utilities) == 0:
+            return 0
+        return np.mean(self.recent_utilities)
+
+    def decide_ask_for_help(self):
+        return self.strategy.ask_for_help(self, self.neighbors)
+
+    def decide_respond_to_help(self, requester_id, favor_size):
+        return self.strategy.respond_to_help(self, requester_id, favor_size)
+
+class GameGrid:
+    def __init__(self, L, N, diagonal_neighbors=True, strategy_generator=None):
+        self.L = L
+        self.N = N
+        self.diagonal_neighbors = diagonal_neighbors
+        self.strategy_generator = strategy_generator
+        self.players = [
+            Player(player_id, self.strategy_generator())
+            for player_id in range(L * L)
+        ]
+        self._precompute_neighbors()
+
+    def strategy_generator(self):
+        strategy_gen = StrategyGenerator([1, 3], [-1, 1])
+        return random.choice(strategy_gen.generate_all_strategies())
+
+    def _precompute_neighbors(self):
+        for player in self.players:
+            player.neighbors = [self.players[n_id] for n_id in self.get_neighbors(player.id)]
+
+    def shuffle_players(self):
+        return random.sample(self.players, len(self.players))
+
+    def get_neighbors(self, player_id):
+        x, y = divmod(player_id, self.L)
+        neighbors = []
+        for i in range(-self.N, self.N + 1):
+            for j in range(-self.N, self.N + 1):
+                if not self.diagonal_neighbors:
+                    if abs(i) + abs(j) > self.N:
+                        continue
+                else:
+                    if max(abs(i), abs(j)) > self.N:
+                        continue
+                nx = (x + i) % self.L
+                ny = (y + j) % self.L
+                if (nx, ny) != (x, y):
+                    neighbors.append(nx * self.L + ny)
+        return neighbors
+
+class Game:
+    def __init__(self, grid, utility_function, reputation_manager):
+        self.grid = grid
+        self.utility_function = utility_function
+        self.history = []
+        self.reputation_manager = reputation_manager
+
+    def one_round(self):
+        players_in_order = self.grid.shuffle_players()
+        for player in players_in_order:
+            ask_decision = player.decide_ask_for_help()
+            if ask_decision["action"] == "ask":
+                target = next(p for p in player.neighbors if p.id == ask_decision["target"])
+                favor_size = ask_decision["favor_size"]
+                response = target.decide_respond_to_help(player.id, favor_size)
+                if response:
+                    utility_requester, utility_responder = self.utility_function.calculate("cooperate", favor_size)
+                    player.update_utility(utility_requester)
+                    target.update_utility(utility_responder)
+                    self.reputation_manager.update_reputation(player, "accept", favor_size)
+                    self.reputation_manager.update_reputation(target, "accept", favor_size)
+                else:
+                    utility_requester, utility_responder = self.utility_function.calculate("reject", favor_size)
+                    player.update_utility(utility_requester)
+                    target.update_utility(utility_responder)
+                    self.reputation_manager.update_reputation(player, "reject", favor_size)
+                    self.reputation_manager.update_reputation(target, "reject", favor_size)
+
+    def play_rounds(self, num_rounds):
+        for _ in range(num_rounds):
+            self.one_round()
 
 class UtilityFunction:
     def calculate(self, action, favor_size):
@@ -323,130 +256,148 @@ class UtilityFunction:
         """
         raise NotImplementedError("This method should be implemented by subclasses.")
 
-class GameGrid:
-    def __init__(self, L, N, diagonal_neighbors=True):
+class Evolution:
+    def __init__(self, game, inverse_mutation_probability):
         """
-        Initialize the game grid with players.
-        :param L: Size of the grid (LxL)
-        :param N: Neighborhood radius
-        :param diagonal_neighbors: Whether diagonals are considered as neighbors.
+        Initialize the Evolution class.
+        :param game: The Game instance.
+        :param inverse_mutation_probability: The inverse probability for a mutation to occur.
         """
-        self.L = L
-        self.N = N
-        self.diagonal_neighbors = diagonal_neighbors
-        self.players = [
-            Player(player_id, self.strategy_generator())
-            for player_id in range(L * L)
-        ]
+        self.game = game
+        self.inverse_mutation_probability = inverse_mutation_probability
+        self.running = False  # Control flag for the evolution process
 
-    def strategy_generator(self):
+    def run_interactive(self):
         """
-        Dynamically load all strategies from the strategies.py file and select one at random.
+        Run the evolution with a GUI for Start/Stop control.
         """
-        # Get all classes from the strategies module
-        strategies_module = importlib.import_module("strategies")
-        strategies = [
-            cls
-            for _, cls in inspect.getmembers(strategies_module, inspect.isclass)
-            if issubclass(cls, Strategy) and cls is not Strategy
-        ]
+        plt.ion()  # Enable interactive mode
 
-        # Choose a random strategy
-        chosen_strategy = random.choice(strategies)
-        return chosen_strategy()
+        # Create the figure and subplots
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
+        fig.subplots_adjust(bottom=0.2)
 
-    def __strategy_generator_old(self):
-        """
-        Generates a random strategy for each player.
-        This method can be extended or modified for custom logic.
-        """
-        strategies = [RandomStrategy(), SelfishStrategy()]
-        strategies = [AcceptAlwaysStrategy()]
-        return random.choice(strategies)
+        # Strategy Grid
+        ax1.set_title("Strategy Grid")
+        strategy_grid = self._get_strategy_grid()
+        img = ax1.imshow(strategy_grid, cmap="viridis", interpolation="nearest")
+        plt.colorbar(img, ax=ax1, label="Strategy")
+        ax1.set_xticks([])
+        ax1.set_yticks([])
 
-    def shuffle_players(self):
-        """Shuffle the order of players for a round."""
-        return random.sample(self.players, len(self.players))
+        # Strategy Overview Table
+        ax2.set_title("Strategy Overview")
+        ax2.axis("off")
+        strategy_table = None
 
-    def get_neighbors(self, player_id):
-        """
-        Find neighbors for a player based on the neighborhood radius and diagonal settings.
-        :param player_id: ID of the player.
-        :return: List of neighboring player IDs.
-        """
-        x, y = divmod(player_id, self.L)
-        neighbors = []
-        for i in range(-self.N, self.N + 1):
-            for j in range(-self.N, self.N + 1):
-                if not self.diagonal_neighbors:
-                    # Manhattan distance: Diagonal neighbors count as > 1
-                    if abs(i) + abs(j) > self.N:
-                        continue
-                else:
-                    # Include diagonals: Max coordinate difference
-                    if max(abs(i), abs(j)) > self.N:
-                        continue
+        # Buttons
+        ax_start = plt.axes([0.1, 0.05, 0.1, 0.075])
+        ax_stop = plt.axes([0.25, 0.05, 0.1, 0.075])
+        btn_start = Button(ax_start, "Start")
+        btn_stop = Button(ax_stop, "Stop")
 
-                # Periodic boundary conditions
-                nx = (x + i) % self.L
-                ny = (y + j) % self.L
-                if (nx, ny) != (x, y):
-                    neighbors.append(nx * self.L + ny)
-        return neighbors
+        btn_start.on_clicked(self._start)
+        btn_stop.on_clicked(self._stop)
 
-    def display_grid(self):
-        """Displays the grid with player IDs."""
-        grid = np.array([player.id for player in self.players]).reshape(self.L, self.L)
-        print(grid)
-    
-class Player:
-    def __init__(self, player_id, strategy):
-        """
-        Initialize a player with their ID, strategy, and initial utility.
-        :param player_id: Unique ID of the player (from the grid).
-        :param strategy: Strategy object or function assigned to this player.
-        """
-        self.id = player_id
-        self.total_utility = 0  # Start with zero utility
-        self.strategy = strategy  # Strategy decides all actions
-        self.strategy_name = strategy.name  # Name of the strategy
-        self.interaction_history = []  # Record of interactions [(other_player_id, outcome)]
+        print("Interactive GUI started. Use 'Start' and 'Stop' buttons to control the simulation.")
 
-    def decide_ask_for_help(self, neighbors):
-        """
-        Ask the strategy to decide whether to ask for help and from whom.
-        :param neighbors: List of neighboring player IDs.
-        :return: Dictionary with the decision:
-            {
-                "favor_size": int or None,
-                "target": int or None,
-                "action": str ("ask" or "none")
-            }
-        """
-        return self.strategy.ask_for_help(self, neighbors, self.interaction_history)
+        while plt.get_fignums():  # Keep running while the figure is open
+            if self.running:
+                self.game.one_round()
+                self._mutate()
 
-    def decide_respond_to_help(self, requester_id, favor_size):
-        """
-        Ask the strategy to decide whether to respond positively to a help request.
-        :param requester_id: ID of the player requesting help.
-        :param favor_size: The size of the favor being requested.
-        :return: Boolean (True if the player agrees to help, False otherwise).
-        """
-        return self.strategy.respond_to_help(self, requester_id, favor_size, self.interaction_history)
+                # Update Strategy Grid
+                strategy_grid = self._get_strategy_grid()
+                img.set_data(strategy_grid)
 
-    def update_utility(self, utility_change):
-        """
-        Update the player's total utility.
-        :param utility_change: Amount to add or subtract from the player's utility.
-        """
-        self.total_utility += utility_change
+                # Update Strategy Overview Table
+                if strategy_table:
+                    strategy_table.remove()
+                strategy_table = self._update_strategy_table(ax2)
 
-    def record_interaction(self, other_player_id, outcome, favor_size):
-        """
-        Record the result of an interaction with another player.
-        :param other_player_id: ID of the other player.
-        :param outcome: Result of the interaction (e.g., "cooperate", "reject").
-        :param favor_size: Size of the favor involved in the interaction (if applicable)
-        """
-        self.interaction_history.append((other_player_id, outcome, favor_size))
+            plt.pause(0.1)  # Allow GUI updates
 
+    def _start(self, event):
+        """Start the evolution."""
+        self.running = True
+
+    def _stop(self, event):
+        """Stop the evolution."""
+        self.running = False
+
+    def _mutate(self):
+        """
+        Execute mutation for each player in the grid based on the average utility per round
+        for the last x rounds. A player does not change their strategy if their average utility
+        is equal to or higher than the best neighbor.
+        """
+        for player in self.game.grid.players:
+            if np.random.rand() < 1 / self.inverse_mutation_probability:
+                # Check if player has neighbors
+                if not player.neighbors:
+                    continue  # Skip mutation if no neighbors
+                
+                # Find the neighbor with the highest average utility per round
+                best_neighbor = max(
+                    player.neighbors,
+                    key=lambda p: p.get_average_utility_per_round()
+                )
+
+                # Compare the player's average utility with the best neighbor's
+                if player.get_average_utility_per_round() >= best_neighbor.get_average_utility_per_round():
+                    continue  # Do not change strategy if player's utility is equal or higher
+                
+                # Adopt the strategy of the best-performing neighbor
+                player.strategy = best_neighbor.strategy
+                player.strategy_name = best_neighbor.strategy_name
+
+    def _get_strategy_grid(self):
+        """Return the strategy grid as a 2D numpy array."""
+        return np.array([
+            [int(player.strategy_name.replace("-", ""), 2) for player in self.game.grid.players]
+        ]).reshape(self.game.grid.L, self.game.grid.L)
+
+    def _update_strategy_table(self, ax):
+        """
+        Update the strategy overview table to display the top 10 strategies
+        with larger font size for better readability.
+        """
+        strategy_counts = defaultdict(list)
+        for player in self.game.grid.players:
+            strategy_counts[player.strategy_name].append(player)
+
+        # Sort strategies by the number of players using them
+        strategy_summary = sorted(strategy_counts.items(), key=lambda x: -len(x[1]))
+
+        # Limit to top 10 strategies
+        top_strategies = strategy_summary[:10]
+
+        # Add placeholders if there are fewer than 10 strategies
+        while len(top_strategies) < 10:
+            top_strategies.append(("None", []))
+
+        # Extract data for the table
+        table_data = []
+        for strategy, players in top_strategies:
+            percentage = len(players) / len(self.game.grid.players) * 100 if players else 0
+            mean_utility = np.mean([p.get_average_utility_per_round() for p in players]) if players else 0
+            std_utility = np.std([p.get_average_utility_per_round() for p in players]) if players else 0
+            mean_reputation = np.mean([p.real_reputation for p in players]) if players else 0
+            table_data.append([
+                strategy,
+                f"{percentage:.2f}%",
+                f"{mean_utility:.2f} ± {std_utility:.2f}",
+                f"{mean_reputation:.2f}"
+            ])
+
+        # Create or update the table
+        table = ax.table(
+            cellText=table_data,
+            colLabels=["Strategy", "Percentage", "Mean Utility (± Std)", "Mean Reputation"],
+            loc="center",
+            cellLoc="center",
+        )
+        table.auto_set_font_size(False)
+        table.set_fontsize(12)  # Set font size for better readability
+        table.scale(1.5, 1.5)  # Scale table width and height for larger display
+        return table
