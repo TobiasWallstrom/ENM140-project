@@ -44,8 +44,8 @@ class ReputationManager:
         player.public_reputation = 1 if player.real_reputation >= 0 else -1
 
 if __name__ == "__main__":
-    L = 12  # Grid size
-    N = 2   # Neighborhood radius
+    L = 5  # Grid size
+    N = 1   # Neighborhood radius
 
     # Strategy generator that returns new strategy instances
     def strategy_generator():
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     reputation_manager = ReputationManager()
     game = Game(grid, utility_function, reputation_manager)
 
-    evolution = Evolution(game, inverse_copy_prob=200, inverse_mutation_prob=1000)
+    evolution = Evolution(game, inverse_copy_prob=30, inverse_mutation_prob=200)
     evolution.run_interactive()
     
 

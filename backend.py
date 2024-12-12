@@ -4,7 +4,7 @@ import itertools
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
-import threading
+import copy
 
 class GameAnalyzer:
     def __init__(self, game):
@@ -74,6 +74,8 @@ class StrategyGenerator:
         self.reputation_values = reputation_values
         self.situations = self._define_situations()
         self.filter_strategies = filter_strategies
+        self.strategy_list = []  # List to store all strategies and their colors
+        self.strategy_color_map = {}  # Map bitcode to color
 
     def _define_situations(self):
         situations = []
@@ -84,9 +86,17 @@ class StrategyGenerator:
                 situations.append(("help", fs, r))
         return situations
 
+    def _generate_random_color(self):
+        """Generate a random color in hexadecimal format."""
+        return "#{:06x}".format(random.randint(0, 0xFFFFFF))
+
     def is_logical(self, decisions):
         """
         Check if a strategy is logical.
+        A strategy is logical if:
+        - It does not ask for large favors but ignores small favors.
+        - It does not help with large favors but ignores small favors.
+        - It helps players with a negative reputation only if it helps players with a positive reputation.
         """
         ask_small = decisions.get(("ask", self.favor_sizes[0]), 0)
         ask_large = decisions.get(("ask", self.favor_sizes[1]), 0)
@@ -112,49 +122,43 @@ class StrategyGenerator:
         return True
 
     def generate_all_strategies(self):
+        """Generate all possible logical strategies and assign unique colors."""
         num_situations = len(self.situations)
         strategies = []
+
+        # Step 1: Generate all strategies
         for decision_vector in itertools.product([0, 1], repeat=num_situations):
             decisions = dict(zip(self.situations, decision_vector))
             if not self.filter_strategies or self.is_logical(decisions):
-                strategies.append(self._create_strategy(decisions))
+                strategy = self._create_strategy(decisions)
+                strategies.append(strategy)
+
+                # Ensure the strategy has a unique color
+                if strategy.bitcode not in self.strategy_color_map:
+                    self.strategy_color_map[strategy.bitcode] = self._generate_random_color()
+
+        # Step 2: Assign colors to all strategies
+        for strategy in strategies:
+            strategy.color = self.strategy_color_map[strategy.bitcode]
+
+        self.strategy_list = strategies
         return strategies
 
     def _create_strategy(self, decisions):
-        """
-        Create a dynamic strategy based on decisions.
-        :param decisions: Dictionary mapping situations to binary decisions.
-        :return: A dynamic strategy instance.
-        """
-
+        """Create a dynamic strategy based on decisions."""
         class DynamicStrategy:
             def __init__(self, decisions, strategy_generator):
-                self.decisions = decisions  # Store decisions as a parameter
-                self.strategy_generator = strategy_generator  # Reference to the generator
-                self.update_bitcode()
-
-            def update_bitcode(self):
-                """Update the bitcode and name based on current decisions."""
+                self.decisions = decisions
+                self.strategy_generator = strategy_generator
+                self.bitcode = "".join(map(str, decisions.values()))
+                self.color = None  # This will be assigned in generate_all_strategies
                 raw_name = "".join(map(str, self.decisions.values()))
                 self.bitcode = raw_name
                 self.name = raw_name[:2] + "-" + raw_name[2:]
 
-            @property
-            def bitcode(self):
-                return self._bitcode
-
-            @bitcode.setter
-            def bitcode(self, new_bitcode):
-                """Update decisions based on the new bitcode."""
-                self._bitcode = new_bitcode
-                if len(new_bitcode) == len(self.decisions):
-                    # Update decisions if the new bitcode matches the expected length
-                    values = list(map(int, new_bitcode))
-                    self.decisions = dict(zip(self.decisions.keys(), values))
 
             def flip_random_bit(self):
-                """Flip a random bit in the bitcode and ensure the resulting decisions are logical."""
-
+                """Flip a random bit and update the strategy to match a predefined one."""
                 bit_list = list(self.bitcode)
                 tried_indices = set()
 
@@ -168,17 +172,22 @@ class StrategyGenerator:
 
                     # Flip the bit
                     bit_list[n] = '1' if bit_list[n] == '0' else '0'
-                    self.bitcode = "".join(bit_list)
+                    new_bitcode = "".join(bit_list)
 
-                    # Check if the updated decisions are logical
-                    if self.strategy_generator.is_logical(self.decisions):
-                        self.update_bitcode()
-                        return
+                    # Check if the new bitcode exists in the strategy list
+                    for strategy in self.strategy_generator.strategy_list:
+                        if strategy.bitcode == new_bitcode:
+                            # Update all attributes to match the new strategy
+                            self.decisions = strategy.decisions
+                            self.bitcode = strategy.bitcode
+                            self.name = strategy.name  # Synchronize name with the bitcode
+                            self.color = strategy.color  # Synchronize color with the bitcode
+                            return
 
-                    # Revert the bit if not logical
+                    # Revert the bit if no match is found
                     bit_list[n] = '1' if bit_list[n] == '0' else '0'
 
-                raise ValueError("Unable to find a logical bit flip after trying all bits.")
+                raise ValueError("No matching strategy found after flipping all bits.")
 
             def ask_for_help(self, player, neighbors):
                 favor_size = random.choices([1, 3], weights=[0.5, 0.5])[0]
@@ -313,6 +322,8 @@ class Evolution:
         Initialize the Evolution class.
         :param game: The Game instance.
         :param inverse_copy_prob: The inverse probability for a mutation to occur.
+        :param inverse_mutation_prob: The inverse probability for a mutation.
+        :param random_mutation: Boolean to allow random bit flipping during mutation.
         """
         self.game = game
         self.inverse_copy_prob = inverse_copy_prob
@@ -323,11 +334,64 @@ class Evolution:
         else:
             self._mutate = self._mutate_copy
 
+    def _start(self, event):
+        """Start the evolution."""
+        self.running = True
+
+    def _stop(self, event):
+        """Stop the evolution."""
+        self.running = False
+
+    def _mutate_copy(self):
+        """
+        Execute mutation for each player in the grid based on the average utility per round.
+        A player does not change their strategy if their average utility
+        is equal to or higher than the best neighbor.
+        """
+        for player in self.game.grid.players:
+            if np.random.rand() < 1 / self.inverse_copy_prob:
+                # Check if player has neighbors
+                if not player.neighbors:
+                    continue  # Skip mutation if no neighbors
+
+                # Find the neighbor with the highest average utility per round
+                best_neighbor = max(
+                    player.neighbors,
+                    key=lambda p: p.get_average_utility_per_round()
+                )
+
+                # Compare the player's average utility with the best neighbor's
+                if player.get_average_utility_per_round() >= best_neighbor.get_average_utility_per_round():
+                    continue  # Do not change strategy if player's utility is equal or higher
+
+                # Adopt the strategy of the best-performing neighbor
+                player.strategy = copy.deepcopy(best_neighbor.strategy)
+                player.strategy_name = best_neighbor.strategy.name
+
+    def _mutate_both(self):
+        """
+        Perform both copying and random mutation.
+        """
+        self._mutate_copy()
+        for player in self.game.grid.players:
+            if np.random.rand() < 1 / self.inverse_mutation_prob:
+                player.strategy.flip_random_bit()
+                player.strategy_name = player.strategy.name
+                print([player2.strategy_name for player2 in self.game.grid.players])
+                print([player2.strategy.bitcode for player2 in self.game.grid.players])
+                print([player2.strategy.name for player2 in self.game.grid.players])
+
     def run_interactive(self):
         """
         Run the evolution with a GUI for Start/Stop control.
         """
         plt.ion()  # Enable interactive mode
+
+        # Create a unified mapping for strategies to indices and colors
+        strategy_color_map = self.game.grid.players[0].strategy.strategy_generator.strategy_color_map
+        strategies = list(strategy_color_map.keys())
+        strategy_to_index = {strategy: idx for idx, strategy in enumerate(strategies)}
+        cmap = plt.cm.get_cmap("tab20", len(strategies))  # Fixed colormap with unique colors
 
         # Create the figure and subplots
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
@@ -335,9 +399,8 @@ class Evolution:
 
         # Strategy Grid
         ax1.set_title("Strategy Grid")
-        strategy_grid = self._get_strategy_grid()
-        img = ax1.imshow(strategy_grid, cmap="viridis", interpolation="nearest")
-        plt.colorbar(img, ax=ax1, label="Strategy")
+        strategy_grid = self._get_strategy_grid(strategy_to_index)
+        img = ax1.imshow(strategy_grid, cmap=cmap, interpolation="nearest")
         ax1.set_xticks([])
         ax1.set_yticks([])
 
@@ -363,72 +426,32 @@ class Evolution:
                 self._mutate()
 
                 # Update Strategy Grid
-                strategy_grid = self._get_strategy_grid()
+                strategy_grid = self._get_strategy_grid(strategy_to_index)
                 img.set_data(strategy_grid)
 
                 # Update Strategy Overview Table
                 if strategy_table:
                     strategy_table.remove()
-                strategy_table = self._update_strategy_table(ax2)
+                strategy_table = self._update_strategy_table(ax2, strategy_to_index, cmap)
 
             plt.pause(0.1)  # Allow GUI updates
 
-    def _start(self, event):
-        """Start the evolution."""
-        self.running = True
-
-    def _stop(self, event):
-        """Stop the evolution."""
-        self.running = False
-
-    def _mutate_copy(self):
+    def _get_strategy_grid(self, strategy_to_index):
         """
-        Execute mutation for each player in the grid based on the average utility per round
-        for the last x rounds. A player does not change their strategy if their average utility
-        is equal to or higher than the best neighbor.
+        Return the strategy grid as a 2D numpy array of numerical indices.
         """
-        for player in self.game.grid.players:
-            if np.random.rand() < 1 / self.inverse_copy_prob:
-                # Check if player has neighbors
-                if not player.neighbors:
-                    continue  # Skip mutation if no neighbors
-                
-                # Find the neighbor with the highest average utility per round
-                best_neighbor = max(
-                    player.neighbors,
-                    key=lambda p: p.get_average_utility_per_round()
-                )
-
-                # Compare the player's average utility with the best neighbor's
-                if player.get_average_utility_per_round() >= best_neighbor.get_average_utility_per_round():
-                    continue  # Do not change strategy if player's utility is equal or higher
-                
-                # Adopt the strategy of the best-performing neighbor
-                player.strategy = best_neighbor.strategy
-                player.strategy_name = best_neighbor.strategy_name
-                player.real_reputation = 0 # best_neighbor.real_reputation #try it out
-
-    def _mutate_both(self):
-        self._mutate_copy()
-        for player in self.game.grid.players:
-            if np.random.rand() < 1 / self.inverse_mutation_prob:
-                player.strategy.flip_random_bit()
-                player.strategy_name = player.strategy.name
-                
-    def _get_strategy_grid(self):
-        """Return the strategy grid as a 2D numpy array."""
         return np.array([
-            [int(player.strategy_name.replace("-", ""), 2) for player in self.game.grid.players]
+            [strategy_to_index[player.strategy.bitcode] for player in self.game.grid.players]
         ]).reshape(self.game.grid.L, self.game.grid.L)
 
-    def _update_strategy_table(self, ax):
+    def _update_strategy_table(self, ax, strategy_to_index, cmap):
         """
         Update the strategy overview table to display the top 10 strategies
-        with larger font size for better readability.
+        with corresponding colors and statistics.
         """
         strategy_counts = defaultdict(list)
         for player in self.game.grid.players:
-            strategy_counts[player.strategy_name].append(player)
+            strategy_counts[player.strategy.bitcode].append(player)
 
         # Sort strategies by the number of players using them
         strategy_summary = sorted(strategy_counts.items(), key=lambda x: -len(x[1]))
@@ -447,21 +470,35 @@ class Evolution:
             mean_utility = np.mean([p.get_average_utility_per_round() for p in players]) if players else 0
             std_utility = np.std([p.get_average_utility_per_round() for p in players]) if players else 0
             mean_reputation = np.mean([p.real_reputation for p in players]) if players else 0
+            std_reputation = np.std([p.real_reputation for p in players]) if players else 0
+
+            # Get color index
+            color = cmap(strategy_to_index.get(strategy, 0) / len(strategy_to_index)) if strategy != "None" else "#FFFFFF"
+
+            # Add row to the table
             table_data.append([
-                strategy,
+                f"{strategy}",
                 f"{percentage:.2f}%",
                 f"{mean_utility:.2f} ± {std_utility:.2f}",
-                f"{mean_reputation:.2f}"
+                f"{mean_reputation:.2f} ± {std_reputation:.2f}",
+                color
             ])
 
         # Create or update the table
         table = ax.table(
-            cellText=table_data,
-            colLabels=["Strategy", "Percentage", "Mean Utility (± Std)", "Mean Reputation"],
+            cellText=[row[:-1] for row in table_data],  # Exclude the color column for text
+            colLabels=["Strategy", "Percentage", "Mean Utility", "Mean Rep"],
             loc="center",
             cellLoc="center",
         )
         table.auto_set_font_size(False)
-        table.set_fontsize(12)  # Set font size for better readability
-        table.scale(1.5, 1.5)  # Scale table width and height for larger display
+        table.set_fontsize(10)  # Set font size for better readability
+        table.scale(1.0, 1.0)  # Adjust table size
+
+        # Add colors to the cells in the first column
+        for row_idx, row in enumerate(table_data):
+            color = row[-1]
+            cell = table[row_idx + 1, 0]  # Offset for header row
+            cell.set_facecolor(color)
+
         return table
