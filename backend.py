@@ -123,26 +123,27 @@ class StrategyGenerator:
 
     def generate_all_strategies(self):
         """Generate all possible logical strategies and assign unique colors."""
-        num_situations = len(self.situations)
-        strategies = []
+        if not self.strategy_list:  # Vermeide doppelte Erstellung
+            num_situations = len(self.situations)
+            strategies = []
 
-        # Step 1: Generate all strategies
-        for decision_vector in itertools.product([0, 1], repeat=num_situations):
-            decisions = dict(zip(self.situations, decision_vector))
-            if not self.filter_strategies or self.is_logical(decisions):
-                strategy = self._create_strategy(decisions)
-                strategies.append(strategy)
+            for decision_vector in itertools.product([0, 1], repeat=num_situations):
+                decisions = dict(zip(self.situations, decision_vector))
+                if not self.filter_strategies or self.is_logical(decisions):
+                    strategy = self._create_strategy(decisions)
+                    strategies.append(strategy)
 
-                # Ensure the strategy has a unique color
-                if strategy.bitcode not in self.strategy_color_map:
-                    self.strategy_color_map[strategy.bitcode] = self._generate_random_color()
+                    # Farbzuweisung
+                    if strategy.bitcode not in self.strategy_color_map:
+                        self.strategy_color_map[strategy.bitcode] = self._generate_random_color()
 
-        # Step 2: Assign colors to all strategies
-        for strategy in strategies:
-            strategy.color = self.strategy_color_map[strategy.bitcode]
+            # Farben synchronisieren
+            for strategy in strategies:
+                strategy.color = self.strategy_color_map[strategy.bitcode]
 
-        self.strategy_list = strategies
-        return strategies
+            self.strategy_list = strategies  # Strategien speichern
+
+        return self.strategy_list
 
     def _create_strategy(self, decisions):
         """Create a dynamic strategy based on decisions."""
@@ -200,7 +201,8 @@ class StrategyGenerator:
                 return {"favor_size": None, "target": None, "action": "none"}
 
             def respond_to_help(self, player, requester_id, favor_size):
-                return self.decisions.get(("help", favor_size, player.public_reputation), 0) == 1
+                requester = next(p for p in player.neighbors if p.id == requester_id)
+                return self.decisions.get(("help", favor_size, requester.public_reputation), 0) == 1
 
         return DynamicStrategy(decisions, self)
 
@@ -210,8 +212,8 @@ class Player:
         self.strategy = strategy
         self.strategy_name = strategy.name
         self.total_utility = 0
-        self.real_reputation = 0.0  # Real reputation as a floating-point value
-        self.public_reputation = 0  # Public reputation as a discrete value (-1 or 1)
+        self.real_reputation = 0.5  # Real reputation as a floating-point value
+        self.public_reputation = 1  # Public reputation as a discrete value (-1 or 1)
         self.neighbors = []  # List of neighboring players
         self.recent_utilities = []  # Utilities from the last x rounds
         self.max_recent_rounds = 20  # Maximum number of recent rounds to track
@@ -235,20 +237,48 @@ class Player:
         return self.strategy.respond_to_help(self, requester_id, favor_size)
 
 class GameGrid:
-    def __init__(self, L, N, strategy_generator = None, diagonal_neighbors=True):
+    def __init__(self, L, N, strategy_generator_instance, diagonal_neighbors=True):
+        """
+        Initialize the GameGrid.
+        :param L: Size of the grid (L x L).
+        :param N: Neighborhood radius.
+        :param strategy_generator_instance: An instance of StrategyGenerator to generate or interpret strategies.
+        :param diagonal_neighbors: Boolean to include diagonal neighbors.
+        """
         self.L = L
         self.N = N
         self.diagonal_neighbors = diagonal_neighbors
-        self.strategy_generator = strategy_generator
-        self.players = [
-            Player(player_id, self.strategy_generator())
-            for player_id in range(L * L)
-        ]
+        self.strategy_generator_instance = strategy_generator_instance
+        self.players = []
+        self.setup_random()
         self._precompute_neighbors()
 
-    def strategy_generator(self):
-        strategy_gen = StrategyGenerator([1, 3], [-1, 1])
-        return random.choice(strategy_gen.generate_all_strategies())
+    def setup_random(self):
+        """Randomly assign strategies to all players using the strategy generator."""
+        for player_id in range(self.L * self.L):
+            strategy = copy.deepcopy(random.choice(self.strategy_generator_instance.generate_all_strategies()))
+            self.players.append(Player(player_id, strategy))
+        self._precompute_neighbors()
+
+    def setup_from_bitcodes(self, bitcodes):
+        """
+        Set up the GameGrid using a list of bitcodes.
+        :param bitcodes: List of bitcodes to assign to players.
+        """
+        if len(bitcodes) != self.L * self.L:
+            raise ValueError("The number of bitcodes must match the grid size (L x L).")
+
+        # Map bitcodes to strategies
+        strategies = {strategy.bitcode: strategy for strategy in self.strategy_generator_instance.generate_all_strategies()}
+
+        self.players = []
+        for player_id, bitcode in enumerate(bitcodes):
+            if bitcode not in strategies:
+                raise ValueError(f"Invalid bitcode '{bitcode}' provided.")
+            strategy = copy.deepcopy(strategies[bitcode])
+            self.players.append(Player(player_id, strategy))
+
+        self._precompute_neighbors()
 
     def _precompute_neighbors(self):
         for player in self.players:
@@ -293,14 +323,13 @@ class Game:
                     utility_requester, utility_responder = self.utility_function.calculate("cooperate", favor_size)
                     player.update_utility(utility_requester)
                     target.update_utility(utility_responder)
-                    self.reputation_manager.update_reputation(player, "accept", favor_size)
-                    self.reputation_manager.update_reputation(target, "accept", favor_size)
+                    self.reputation_manager.update_reputation(player, target, "accept", favor_size)
                 else:
                     utility_requester, utility_responder = self.utility_function.calculate("reject", favor_size)
                     player.update_utility(utility_requester)
                     target.update_utility(utility_responder)
-                    self.reputation_manager.update_reputation(player, "reject", favor_size)
-                    self.reputation_manager.update_reputation(target, "reject", favor_size)
+                    #self.reputation_manager.update_reputation(player, "reject", favor_size)
+                    self.reputation_manager.update_reputation(player, target, "reject", favor_size)
 
     def play_rounds(self, num_rounds):
         for _ in range(num_rounds):
@@ -377,9 +406,6 @@ class Evolution:
             if np.random.rand() < 1 / self.inverse_mutation_prob:
                 player.strategy.flip_random_bit()
                 player.strategy_name = player.strategy.name
-                print([player2.strategy_name for player2 in self.game.grid.players])
-                print([player2.strategy.bitcode for player2 in self.game.grid.players])
-                print([player2.strategy.name for player2 in self.game.grid.players])
 
     def run_interactive(self):
         """
@@ -387,20 +413,14 @@ class Evolution:
         """
         plt.ion()  # Enable interactive mode
 
-        # Create a unified mapping for strategies to indices and colors
-        strategy_color_map = self.game.grid.players[0].strategy.strategy_generator.strategy_color_map
-        strategies = list(strategy_color_map.keys())
-        strategy_to_index = {strategy: idx for idx, strategy in enumerate(strategies)}
-        cmap = plt.cm.get_cmap("tab20", len(strategies))  # Fixed colormap with unique colors
-
         # Create the figure and subplots
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
         fig.subplots_adjust(bottom=0.2)
 
         # Strategy Grid
         ax1.set_title("Strategy Grid")
-        strategy_grid = self._get_strategy_grid(strategy_to_index)
-        img = ax1.imshow(strategy_grid, cmap=cmap, interpolation="nearest")
+        strategy_grid = self._get_strategy_grid()
+        img = ax1.imshow(strategy_grid, interpolation="nearest")
         ax1.set_xticks([])
         ax1.set_yticks([])
 
@@ -426,25 +446,38 @@ class Evolution:
                 self._mutate()
 
                 # Update Strategy Grid
-                strategy_grid = self._get_strategy_grid(strategy_to_index)
+                strategy_grid = self._get_strategy_grid()
                 img.set_data(strategy_grid)
 
                 # Update Strategy Overview Table
                 if strategy_table:
                     strategy_table.remove()
-                strategy_table = self._update_strategy_table(ax2, strategy_to_index, cmap)
+                strategy_table = self._update_strategy_table(ax2)
 
             plt.pause(0.1)  # Allow GUI updates
 
-    def _get_strategy_grid(self, strategy_to_index):
+    def _get_strategy_grid(self):
         """
-        Return the strategy grid as a 2D numpy array of numerical indices.
+        Return the strategy grid as a 2D numpy array of RGB color values.
         """
-        return np.array([
-            [strategy_to_index[player.strategy.bitcode] for player in self.game.grid.players]
-        ]).reshape(self.game.grid.L, self.game.grid.L)
+        L = self.game.grid.L
+        # Convert colors to RGB tuples
+        color_grid = [
+            [
+                self._hex_to_rgb(player.strategy.color) for player in self.game.grid.players[i * L:(i + 1) * L]
+            ]
+            for i in range(L)
+        ]
+        return np.array(color_grid)
 
-    def _update_strategy_table(self, ax, strategy_to_index, cmap):
+    def _hex_to_rgb(self, hex_color):
+        """
+        Convert a hexadecimal color to an RGB tuple.
+        """
+        hex_color = hex_color.lstrip('#')
+        return tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+
+    def _update_strategy_table(self, ax):
         """
         Update the strategy overview table to display the top 10 strategies
         with corresponding colors and statistics.
@@ -468,19 +501,15 @@ class Evolution:
         for strategy, players in top_strategies:
             percentage = len(players) / len(self.game.grid.players) * 100 if players else 0
             mean_utility = np.mean([p.get_average_utility_per_round() for p in players]) if players else 0
-            std_utility = np.std([p.get_average_utility_per_round() for p in players]) if players else 0
             mean_reputation = np.mean([p.real_reputation for p in players]) if players else 0
-            std_reputation = np.std([p.real_reputation for p in players]) if players else 0
-
-            # Get color index
-            color = cmap(strategy_to_index.get(strategy, 0) / len(strategy_to_index)) if strategy != "None" else "#FFFFFF"
+            color = players[0].strategy.color if players else "#FFFFFF"  # Take the color of the first player
 
             # Add row to the table
             table_data.append([
                 f"{strategy}",
                 f"{percentage:.2f}%",
-                f"{mean_utility:.2f} ± {std_utility:.2f}",
-                f"{mean_reputation:.2f} ± {std_reputation:.2f}",
+                f"{mean_utility:.2f}",
+                f"{mean_reputation:.2f}",
                 color
             ])
 
@@ -492,8 +521,8 @@ class Evolution:
             cellLoc="center",
         )
         table.auto_set_font_size(False)
-        table.set_fontsize(10)  # Set font size for better readability
-        table.scale(1.0, 1.0)  # Adjust table size
+        table.set_fontsize(10)
+        table.scale(1.0, 1.0)
 
         # Add colors to the cells in the first column
         for row_idx, row in enumerate(table_data):
