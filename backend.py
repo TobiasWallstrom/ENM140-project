@@ -308,7 +308,6 @@ class Game:
     def __init__(self, grid, utility_function, reputation_manager):
         self.grid = grid
         self.utility_function = utility_function
-        self.history = []
         self.reputation_manager = reputation_manager
 
     def one_round(self):
@@ -357,7 +356,8 @@ class Evolution:
         self.game = game
         self.inverse_copy_prob = inverse_copy_prob
         self.inverse_mutation_prob = inverse_mutation_prob
-        self.running = False  # Control flag for the evolution process
+        self.running = False  #Control flag for the evolution process
+        self.history = []
         if random_mutation:
             self._mutate = self._mutate_both
         else:
@@ -407,7 +407,7 @@ class Evolution:
                 player.strategy.flip_random_bit()
                 player.strategy_name = player.strategy.name
 
-    def run_interactive(self):
+    def run_interactive(self, record_data = True):
         """
         Run the evolution with a GUI for Start/Stop control.
         """
@@ -428,6 +428,10 @@ class Evolution:
         ax2.set_title("Strategy Overview")
         ax2.axis("off")
         strategy_table = None
+
+        # Iteration Counter
+        iteration = 0
+        iteration_text = fig.text(0.5, 0.05, f"Iteration: {iteration}", ha='center', va='center', fontsize=12)
 
         # Buttons
         ax_start = plt.axes([0.1, 0.05, 0.1, 0.075])
@@ -453,8 +457,14 @@ class Evolution:
                 if strategy_table:
                     strategy_table.remove()
                 strategy_table = self._update_strategy_table(ax2)
-
-            plt.pause(0.1)  # Allow GUI updates
+                # Update Iteration Counter
+                iteration += 1
+                iteration_text.set_text(f"Iteration: {iteration}")
+                
+                if record_data:
+                    self._record_history(iteration)
+                
+            plt.pause(0.01)  # Allow GUI updates'
 
     def _get_strategy_grid(self):
         """
@@ -531,3 +541,74 @@ class Evolution:
             cell.set_facecolor(color)
 
         return table
+ 
+    def plot_history(self):
+        """
+        Plot the recorded history of strategies over iterations.
+        """
+        if not self.history:
+            print("No history to plot.")
+            return
+
+        # Prepare data for plotting
+        iterations = [entry["iteration"] for entry in self.history]
+        strategy_data = {}
+        
+        # Gather all unique strategies across iterations
+        for entry in self.history:
+            for strat in entry["strategies"]:
+                if strat["bitcode"] not in strategy_data:
+                    strategy_data[strat["bitcode"]] = {"percentages": [], "utilities": [], "reputations": []}
+
+        # Populate the data for each strategy
+        for entry in self.history:
+            recorded_strategies = {s["bitcode"]: s for s in entry["strategies"]}
+            for bitcode in strategy_data.keys():
+                if bitcode in recorded_strategies:
+                    strategy_data[bitcode]["percentages"].append(recorded_strategies[bitcode]["percentage"])
+                    strategy_data[bitcode]["utilities"].append(recorded_strategies[bitcode]["mean_utility"])
+                    strategy_data[bitcode]["reputations"].append(recorded_strategies[bitcode]["mean_reputation"])
+                else:
+                    strategy_data[bitcode]["percentages"].append(0)
+                    strategy_data[bitcode]["utilities"].append(0)
+                    strategy_data[bitcode]["reputations"].append(0)
+
+        # Plot strategy percentages
+        plt.figure(figsize=(12, 6))
+        for bitcode, data in strategy_data.items():
+            plt.plot(iterations, data["percentages"], label=f"Strategy {bitcode}")
+        plt.title("Strategy Distribution Over Time")
+        plt.xlabel("Iteration")
+        plt.ylabel("Percentage of Players")
+        plt.legend()
+        plt.grid()
+        plt.tight_layout()
+
+        # Show or save the plot
+        plt.show(block=True)  # Use plt.savefig("strategy_history.png") to save as a file
+
+    def _record_history(self, iteration):
+        """
+        Record the current state of the strategies and statistics.
+        """
+        strategy_counts = defaultdict(list)
+        for player in self.game.grid.players:
+            strategy_counts[player.strategy.bitcode].append(player)
+
+        # Summarize data
+        history_entry = {
+            "iteration": iteration,
+            "strategies": []
+        }
+        for bitcode, players in strategy_counts.items():
+            percentage = len(players) / len(self.game.grid.players) * 100
+            mean_utility = np.mean([p.get_average_utility_per_round() for p in players])
+            mean_reputation = np.mean([p.real_reputation for p in players])
+            history_entry["strategies"].append({
+                "bitcode": bitcode,
+                "percentage": percentage,
+                "mean_utility": mean_utility,
+                "mean_reputation": mean_reputation
+            })
+
+        self.history.append(history_entry)
