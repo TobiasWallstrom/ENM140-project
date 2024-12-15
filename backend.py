@@ -205,7 +205,8 @@ class StrategyGenerator:
                 requester = next(p for p in player.neighbors if p.id == requester_id)
                 anwser = self.decisions.get(("help", favor_size, requester.public_reputation), 0) == 1
                 if not anwser:
-                    print("hilftnciht#######################################################################")
+                    #print("hilftnciht#######################################################################")
+                    pass
                 return anwser
 
         return DynamicStrategy(decisions, self)
@@ -236,6 +237,7 @@ class Player:
         if len(self.recent_utilities) == 0:
             return 0
         return np.mean(self.recent_utilities)*2 # multiply by 2 to get the average utility per round instead of per favor_change
+    
     def decide_ask_for_help(self):
         return self.strategy.ask_for_help(self, self.neighbors)
 
@@ -452,7 +454,7 @@ class Evolution:
 
         while plt.get_fignums():  # Keep running while the figure is open
             if self.running:
-                print(f"Iteration: {iteration}")
+                #print(f"Round: {iteration}")
                 self.game.one_round()
                 self._mutate()
 
@@ -472,6 +474,8 @@ class Evolution:
                     self._record_history(iteration)
                 
             plt.pause(0.01)  # Allow GUI updates'
+        
+        plt.close(fig)
 
     def _get_strategy_grid(self):
         """
@@ -599,7 +603,6 @@ class Evolution:
 
         # Show or save the plot
         plt.show(block=True)  # Use plt.savefig("strategy_history.png") to save as a file
-
 
     def _record_history(self, iteration):
         """

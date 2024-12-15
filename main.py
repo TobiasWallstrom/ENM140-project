@@ -28,7 +28,7 @@ class SimpleUtility(UtilityFunction):
             return 0, 0
         
 class ReputationManager:
-    def __init__(self, gain_base=0.4, loss_base=0.01, min_reputation=-1.0, max_reputation=1.0):
+    def __init__(self, gain_base=0.1, loss_base=0.1, min_reputation=-1.0, max_reputation=1.0):
         self.gain_base = gain_base
         self.loss_base = loss_base
         self.min_reputation = min_reputation
@@ -59,7 +59,7 @@ if __name__ == "__main__":
             "110000", "110101", "110101", "110101",
             "110000", "110101", "110101", "110101",
             "110000", "110000", "110000", "110000"]
-    own_grid = ["111111"]*L**2
+    own_grid = ["101111"]*L**2
     
     grid.setup_from_bitcodes(own_grid)
 
