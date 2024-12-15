@@ -573,19 +573,26 @@ class Evolution:
                     strategy_data[bitcode]["utilities"].append(0)
                     strategy_data[bitcode]["reputations"].append(0)
 
+        # Sort strategies by their final percentage in descending order
+        sorted_strategies = sorted(strategy_data.items(), key=lambda x: x[1]["percentages"][-1], reverse=True)
+
         # Plot strategy percentages
         plt.figure(figsize=(12, 6))
-        for bitcode, data in strategy_data.items():
+        for bitcode, data in sorted_strategies:
             plt.plot(iterations, data["percentages"], label=f"Strategy {bitcode}")
         plt.title("Strategy Distribution Over Time")
         plt.xlabel("Iteration")
         plt.ylabel("Percentage of Players")
-        plt.legend()
+        plt.legend(title="Strategies (sorted by final percentage)",
+                   loc="upper left",  # Change this to other options if needed
+                    bbox_to_anchor=(1.05, 1),  # Position it outside the plot
+                    borderaxespad=0.  ) # Add padding
         plt.grid()
         plt.tight_layout()
 
         # Show or save the plot
         plt.show(block=True)  # Use plt.savefig("strategy_history.png") to save as a file
+
 
     def _record_history(self, iteration):
         """

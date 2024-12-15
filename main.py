@@ -44,7 +44,7 @@ class ReputationManager:
         helping.public_reputation = 1 if helping.real_reputation >= 0 else -1
 
 if __name__ == "__main__":
-    L = 12  # Grid size
+    L = 5  # Grid size
     N = 1   # Neighborhood radius
 
     strategy_generator_instance = StrategyGenerator(
@@ -55,18 +55,18 @@ if __name__ == "__main__":
     #print([strategie.bitcode for strategie in strategy_generator_instance.generate_all_strategies()])
 
     grid = GameGrid(L, N, strategy_generator_instance, diagonal_neighbors=True)
-    '''own_grid = ["110000", "110000", "110000", "110000",
+    own_grid = ["110000", "110000", "110000", "110000",
             "110000", "110101", "110101", "110101",
             "110000", "110101", "110101", "110101",
             "110000", "110000", "110000", "110000"]
-    #own_grid = ["111111"]*L**2
-    '''
+    own_grid = ["111111"]*L**2
+    
     #grid.setup_from_bitcodes(own_grid)
 
     game = Game(grid, SimpleUtility(), ReputationManager())
 
-    evolution = Evolution(game, inverse_copy_prob=200, inverse_mutation_prob=600, random_mutation=True)
-    evolution.run_interactive(record_data = False)
+    evolution = Evolution(game, inverse_copy_prob=70, inverse_mutation_prob=1000, random_mutation=True)
+    evolution.run_interactive(record_data = True)
     evolution.plot_history()
     
 
