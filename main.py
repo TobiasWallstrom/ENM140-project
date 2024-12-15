@@ -59,7 +59,7 @@ if __name__ == "__main__":
             "110000", "110101", "110101", "110101",
             "110000", "110101", "110101", "110101",
             "110000", "110000", "110000", "110000"]
-    own_grid = ["101111"]*L**2
+    own_grid = ["111100"]*L**2
     
     grid.setup_from_bitcodes(own_grid)
 
@@ -67,7 +67,7 @@ if __name__ == "__main__":
 
     evolution = Evolution(game, inverse_copy_prob=70, inverse_mutation_prob=1000, random_mutation=False)
     evolution.run_interactive(record_data = True)
-    #evolution.plot_history()
+    evolution.plot_history()
     
 
     

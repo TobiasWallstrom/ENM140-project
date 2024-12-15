@@ -451,6 +451,7 @@ class Evolution:
         btn_stop.on_clicked(self._stop)
 
         print("Interactive GUI started. Use 'Start' and 'Stop' buttons to control the simulation.")
+        self._update_strategy_table(ax2)
 
         while plt.get_fignums():  # Keep running while the figure is open
             if self.running:
