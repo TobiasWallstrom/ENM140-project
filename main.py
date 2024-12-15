@@ -39,7 +39,7 @@ class ReputationManager:
             reputation_change = self.gain_base * favor_size
             helping.real_reputation = min(self.max_reputation, helping.real_reputation + reputation_change)
         elif action == "reject":
-            reputation_change = self.loss_base * favor_size * (1 + asking.real_reputation)
+            reputation_change = self.loss_base * favor_size * (1 + asking.real_reputation/1.5)
             helping.real_reputation = max(self.min_reputation, helping.real_reputation - reputation_change)
         helping.public_reputation = 1 if helping.real_reputation >= 0 else -1
 
@@ -61,13 +61,13 @@ if __name__ == "__main__":
             "110000", "110000", "110000", "110000"]
     own_grid = ["111111"]*L**2
     
-    #grid.setup_from_bitcodes(own_grid)
+    grid.setup_from_bitcodes(own_grid)
 
     game = Game(grid, SimpleUtility(), ReputationManager())
 
-    evolution = Evolution(game, inverse_copy_prob=70, inverse_mutation_prob=1000, random_mutation=True)
+    evolution = Evolution(game, inverse_copy_prob=70, inverse_mutation_prob=1000, random_mutation=False)
     evolution.run_interactive(record_data = True)
-    evolution.plot_history()
+    #evolution.plot_history()
     
 
     

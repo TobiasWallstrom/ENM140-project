@@ -147,6 +147,7 @@ class StrategyGenerator:
 
     def _create_strategy(self, decisions):
         """Create a dynamic strategy based on decisions."""
+        super_favor_sizes = self.favor_sizes
         class DynamicStrategy:
             def __init__(self, decisions, strategy_generator):
                 self.decisions = decisions
@@ -191,7 +192,7 @@ class StrategyGenerator:
                 raise ValueError("No matching strategy found after flipping all bits.")
 
             def ask_for_help(self, player, neighbors):
-                favor_size = random.choices([1, 3], weights=[0.5, 0.5])[0]
+                favor_size = random.choices(super_favor_sizes, weights=[0.5, 0.5])[0]
                 if ("ask", favor_size) in self.decisions and self.decisions[("ask", favor_size)] == 1 and neighbors:
                     best_neighbors = [
                         n for n in neighbors if n.public_reputation == max(neighbors, key=lambda n: n.public_reputation).public_reputation
@@ -202,7 +203,10 @@ class StrategyGenerator:
 
             def respond_to_help(self, player, requester_id, favor_size):
                 requester = next(p for p in player.neighbors if p.id == requester_id)
-                return self.decisions.get(("help", favor_size, requester.public_reputation), 0) == 1
+                anwser = self.decisions.get(("help", favor_size, requester.public_reputation), 0) == 1
+                if not anwser:
+                    print("hilftnciht#######################################################################")
+                return anwser
 
         return DynamicStrategy(decisions, self)
 
@@ -217,10 +221,13 @@ class Player:
         self.neighbors = []  # List of neighboring players
         self.recent_utilities = []  # Utilities from the last x rounds
         self.max_recent_rounds = 20  # Maximum number of recent rounds to track
+        self.all_utilities = []
 
     def update_utility(self, utility_change):
         self.total_utility += utility_change
         self.recent_utilities.append(utility_change)
+        self.all_utilities.append(utility_change)
+
         # Keep only the last x rounds
         if len(self.recent_utilities) > self.max_recent_rounds:
             self.recent_utilities.pop(0)
@@ -228,8 +235,7 @@ class Player:
     def get_average_utility_per_round(self):
         if len(self.recent_utilities) == 0:
             return 0
-        return np.mean(self.recent_utilities)
-
+        return np.mean(self.recent_utilities)*2 # multiply by 2 to get the average utility per round instead of per favor_change
     def decide_ask_for_help(self):
         return self.strategy.ask_for_help(self, self.neighbors)
 
@@ -446,6 +452,7 @@ class Evolution:
 
         while plt.get_fignums():  # Keep running while the figure is open
             if self.running:
+                print(f"Iteration: {iteration}")
                 self.game.one_round()
                 self._mutate()
 
