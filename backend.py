@@ -233,6 +233,10 @@ class Player:
         if len(self.recent_utilities) > self.max_recent_rounds:
             self.recent_utilities.pop(0)
 
+    def update_reputation(self, reputation_change, max_reputation=1, min_reputation=-1):
+        self.real_reputation = min(max_reputation, max(min_reputation, self.real_reputation + reputation_change))
+        self.public_reputation = max_reputation if self.real_reputation >= 0 else min_reputation
+
     def get_average_utility_per_round(self):
         if len(self.recent_utilities) == 0:
             return 0
@@ -435,7 +439,8 @@ class Evolution:
         # Strategy Overview Table
         ax2.set_title("Strategy Overview")
         ax2.axis("off")
-        strategy_table = None
+        self.strategy_table = self.initialize_strategy_table(ax2)
+        self.update_strategy_table(self.strategy_table)
 
         # Iteration Counter
         iteration = 0
@@ -451,7 +456,6 @@ class Evolution:
         btn_stop.on_clicked(self._stop)
 
         print("Interactive GUI started. Use 'Start' and 'Stop' buttons to control the simulation.")
-        self._update_strategy_table(ax2)
 
         while plt.get_fignums():  # Keep running while the figure is open
             if self.running:
@@ -464,9 +468,7 @@ class Evolution:
                 img.set_data(strategy_grid)
 
                 # Update Strategy Overview Table
-                if strategy_table:
-                    strategy_table.remove()
-                strategy_table = self._update_strategy_table(ax2)
+                self.update_strategy_table(self.strategy_table)
                 # Update Iteration Counter
                 iteration += 1
                 iteration_text.set_text(f"Iteration: {iteration}")
@@ -499,46 +501,74 @@ class Evolution:
         hex_color = hex_color.lstrip('#')
         return tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
 
-    def _update_strategy_table(self, ax):
+    def update_strategy_table(self, table):
         """
-        Update the strategy overview table to display the top 10 strategies
-        with corresponding colors and statistics.
+        Update the strategy overview table with current data.
         """
         strategy_counts = defaultdict(list)
         for player in self.game.grid.players:
             strategy_counts[player.strategy.bitcode].append(player)
 
-        # Sort strategies by the number of players using them
         strategy_summary = sorted(strategy_counts.items(), key=lambda x: -len(x[1]))
-
-        # Limit to top 10 strategies
         top_strategies = strategy_summary[:10]
 
-        # Add placeholders if there are fewer than 10 strategies
         while len(top_strategies) < 10:
             top_strategies.append(("None", []))
 
-        # Extract data for the table
-        table_data = []
-        for strategy, players in top_strategies:
+        # Track the maximum values for each column
+        max_values = {"Percentage": 0, "Mean Utility": float('-inf'), "Mean Rep": float('-inf')}
+        max_indices = {"Percentage": -1, "Mean Utility": -1, "Mean Rep": -1}
+
+        for row_idx, (strategy, players) in enumerate(top_strategies):
             percentage = len(players) / len(self.game.grid.players) * 100 if players else 0
             mean_utility = np.mean([p.get_average_utility_per_round() for p in players]) if players else 0
             mean_reputation = np.mean([p.real_reputation for p in players]) if players else 0
             color = players[0].strategy.color if players else "#FFFFFF"  # Take the color of the first player
 
-            # Add row to the table
-            table_data.append([
-                f"{strategy}",
-                f"{percentage:.2f}%",
-                f"{mean_utility:.2f}",
-                f"{mean_reputation:.2f}",
-                color
-            ])
+            # Update maximum values and their indices
+            if percentage > max_values["Percentage"]:
+                max_values["Percentage"] = percentage
+                max_indices["Percentage"] = row_idx
 
-        # Create or update the table
+            if mean_utility > max_values["Mean Utility"]:
+                max_values["Mean Utility"] = mean_utility
+                max_indices["Mean Utility"] = row_idx
+
+            if mean_reputation > max_values["Mean Rep"]:
+                max_values["Mean Rep"] = mean_reputation
+                max_indices["Mean Rep"] = row_idx
+
+            # Update the table row
+            table[row_idx + 1, 0].get_text().set_text(f"{strategy}")
+            table[row_idx + 1, 1].get_text().set_text(f"{percentage:.2f}%")
+            table[row_idx + 1, 2].get_text().set_text(f"{mean_utility:.2f}")
+            table[row_idx + 1, 3].get_text().set_text(f"{mean_reputation:.2f}")
+
+            # Set the color of the first column (strategy column)
+            table[row_idx + 1, 0].set_facecolor(color)
+
+            # Remove bold formatting for all rows first
+            for col_idx in range(1, 4):  # Exclude the first column
+                table[row_idx + 1, col_idx].get_text().set_fontweight("normal")
+
+        # Make the highest values in each column bold
+        for col_name, col_idx in zip(["Percentage", "Mean Utility", "Mean Rep"], [1, 2, 3]):
+            if max_indices[col_name] >= 0:
+                table[max_indices[col_name] + 1, col_idx].get_text().set_fontweight("bold")
+
+
+    def initialize_strategy_table(self, ax):
+        """
+        Initialize the strategy overview table with empty data.
+        """
+        # Create empty placeholder data
+        placeholder_data = [["" for _ in range(4)] for _ in range(10)]
+        col_labels = ["Strategy", "Percentage", "Mean Utility", "Mean Rep"]
+
+        # Create the table
         table = ax.table(
-            cellText=[row[:-1] for row in table_data],  # Exclude the color column for text
-            colLabels=["Strategy", "Percentage", "Mean Utility", "Mean Rep"],
+            cellText=placeholder_data,
+            colLabels=col_labels,
             loc="center",
             cellLoc="center",
         )
@@ -546,14 +576,13 @@ class Evolution:
         table.set_fontsize(10)
         table.scale(1.0, 1.0)
 
-        # Add colors to the cells in the first column
-        for row_idx, row in enumerate(table_data):
-            color = row[-1]
-            cell = table[row_idx + 1, 0]  # Offset for header row
-            cell.set_facecolor(color)
+        # Make header row bold
+        for col_idx in range(len(col_labels)):
+            cell = table[0, col_idx]
+            cell.get_text().set_fontweight("bold")  # Set header text to bold
 
         return table
- 
+
     def plot_history(self):
         """
         Plot the recorded history of strategies over iterations.
