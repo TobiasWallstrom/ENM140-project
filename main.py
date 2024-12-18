@@ -21,14 +21,14 @@ class SimpleUtility(UtilityFunction):
         - Rejection: No utility change.
         """
         if action == "cooperate":
-            return favor_size, -favor_size/8
+            return favor_size, -favor_size/4
         elif action == "reject":
             return 0, 0
         else:  # No action
             return 0, 0
         
 class ReputationManager:
-    def __init__(self, gain_base=0.1, loss_base=0.02, min_reputation=-1.0, max_reputation=1.0):
+    def __init__(self, gain_base=0.1, loss_base=0.1, min_reputation=-1.0, max_reputation=1.0):
         self.gain_base = gain_base
         self.loss_base = loss_base
         self.min_reputation = min_reputation
@@ -39,7 +39,7 @@ class ReputationManager:
             reputation_change = self.gain_base * favor_size
             helping.real_reputation = min(self.max_reputation, helping.real_reputation + reputation_change)
         elif action == "reject":
-            reputation_change = self.loss_base * favor_size * (1 + asking.real_reputation)
+            reputation_change = self.loss_base * favor_size * (1 + asking.real_reputation/1.5)
             helping.real_reputation = max(self.min_reputation, helping.real_reputation - reputation_change)
         helping.public_reputation = 1 if helping.real_reputation >= 0 else -1
 
@@ -69,8 +69,6 @@ if __name__ == "__main__":
     grid.setup_from_bitcodes(own_grid)
     '''
     game = Game(grid, SimpleUtility(), ReputationManager(), asking_style = "distributed") ## Choose and asking_style between "random", "best" and "distributed"
-
-    game = Game(grid, SimpleUtility(), ReputationManager())
 
     evolution = Evolution(game, inverse_copy_prob=70, inverse_mutation_prob=1000, inverse_pardon_prob=100, random_mutation=False)
     evolution.run_interactive(record_data = True)
