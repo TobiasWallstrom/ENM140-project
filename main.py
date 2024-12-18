@@ -55,7 +55,7 @@ if __name__ == "__main__":
     #print([strategie.bitcode for strategie in strategy_generator_instance.generate_all_strategies()])
 
     grid = GameGrid(L, N, strategy_generator_instance, diagonal_neighbors=True)
-    own_grid = [
+    '''own_grid = [
     "110000", "110000", "110000", "110000", "110000", "110000", "110000",
     "110000", "110000", "110000", "110000", "110000", "110000", "110000",
     "110000", "110000", "110101", "110101", "110101", "110101", "110000",
@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
     game = Game(grid, SimpleUtility(), ReputationManager())
 
-    evolution = Evolution(game, inverse_copy_prob=70, inverse_mutation_prob=1000, random_mutation=False)
+    evolution = Evolution(game, inverse_copy_prob=70, inverse_mutation_prob=1000, inverse_pardon_prob=100, random_mutation=False)
     evolution.run_interactive(record_data = True)
     evolution.plot_history()
     
