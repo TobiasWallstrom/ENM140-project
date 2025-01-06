@@ -445,7 +445,7 @@ class Evolution:
                 player.strategy.flip_random_bit()
                 player.strategy_name = player.strategy.name
 
-    def run_interactive(self, record_data = True):
+    def run_interactive(self, record_data = True, plotting = True):
         """
         Run the evolution with a GUI for Start/Stop control.
         """
@@ -480,12 +480,14 @@ class Evolution:
 
         btn_start.on_clicked(self._start)
         btn_stop.on_clicked(self._stop)
+        plt.show()
 
         print("Interactive GUI started. Use 'Start' and 'Stop' buttons to control the simulation.")
 
         while plt.get_fignums():  # Keep running while the figure is open
             if self.running:
-                #print(f"Round: {iteration}")
+                if iteration % 250 == 0:
+                    print(f"Round: {iteration}")
                 self.game.one_round()
                 self._mutate()
                 self._pardon()
@@ -502,8 +504,9 @@ class Evolution:
                 
                 if record_data:
                     self._record_history(iteration)
-                
-            plt.pause(0.01)  # Allow GUI updates'
+
+            if plotting or iteration == 1 or iteration % 1000 == 0:   
+                plt.pause(0.01)  # Allow GUI updates'
         
         plt.close(fig)
 
