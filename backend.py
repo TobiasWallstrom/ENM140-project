@@ -260,7 +260,7 @@ class Player:
     def decide_respond_to_help(self, requester_id, favor_size):
         return self.strategy.respond_to_help(self, requester_id, favor_size)
     
-    def pardon(self, pardon_size = 0.5):
+    def pardon(self, pardon_size = 0.1):
         if self.real_reputation < (1-pardon_size):
             self.real_reputation += pardon_size
 
@@ -445,7 +445,7 @@ class Evolution:
                 player.strategy.flip_random_bit()
                 player.strategy_name = player.strategy.name
 
-    def run_interactive(self, record_data = True, plotting = True):
+    def run_interactive(self, record_data = True, plotting_frequenz = 100):
         """
         Run the evolution with a GUI for Start/Stop control.
         """
@@ -505,7 +505,7 @@ class Evolution:
                 if record_data:
                     self._record_history(iteration)
 
-            if plotting or iteration == 1 or iteration % 1000 == 0:   
+            if iteration == 1 or iteration % plotting_frequenz == 0:   
                 plt.pause(0.01)  # Allow GUI updates'
         
         plt.close(fig)
@@ -585,7 +585,6 @@ class Evolution:
         for col_name, col_idx in zip(["Percentage", "Mean Utility", "Mean Rep"], [1, 2, 3]):
             if max_indices[col_name] >= 0:
                 table[max_indices[col_name] + 1, col_idx].get_text().set_fontweight("bold")
-
 
     def initialize_strategy_table(self, ax):
         """
