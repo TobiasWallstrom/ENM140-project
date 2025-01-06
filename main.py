@@ -66,11 +66,11 @@ if __name__ == "__main__":
     #own_grid = ["111101"]*L**2
 
     
-    grid.setup_from_bitcodes(own_grid)
+    #grid.setup_from_bitcodes(own_grid)
 
     game = Game(grid, SimpleUtility(), ReputationManager())
 
-    evolution = Evolution(game, inverse_copy_prob=70, inverse_mutation_prob=2000, random_mutation=True)
+    evolution = Evolution(game, inverse_copy_prob=30, inverse_mutation_prob=2000, random_mutation=True)
     evolution.run_interactive(record_data = True)
     evolution.plot_history()
     
