@@ -191,13 +191,25 @@ class StrategyGenerator:
 
                 raise ValueError("No matching strategy found after flipping all bits.")
 
-            def ask_for_help(self, player, neighbors):
+            def ask_for_help(self, player, neighbors, asking_style="random"):
                 favor_size = random.choices(super_favor_sizes, weights=[0.5, 0.5])[0]
                 if ("ask", favor_size) in self.decisions and self.decisions[("ask", favor_size)] == 1 and neighbors:
-                    best_neighbors = [
-                        n for n in neighbors if n.public_reputation == max(neighbors, key=lambda n: n.public_reputation).public_reputation
-                    ]
-                    chosen_neighbor = random.choice(best_neighbors) if len(best_neighbors) > 1 else best_neighbors[0]
+                    if asking_style == "random":
+                        chosen_neighbor = random.choice(neighbors)
+                    
+                    if asking_style == "best":
+                        best_neighbors = [
+                            n for n in neighbors if n.public_reputation == max(neighbors, key=lambda n: n.public_reputation).public_reputation
+                        ]
+                        chosen_neighbor = random.choice(best_neighbors) if len(best_neighbors) > 1 else best_neighbors[0]
+
+                    if asking_style == "distributed":
+                        neighbors_rep = [n.public_reputation + 2 for n in neighbors]
+                        total_rep = sum(neighbors_rep)
+                        weights = [x/total_rep for x in neighbors_rep]
+                        chosen_neighbor = np.random.choice(neighbors, 1, p=weights)[0]
+
+                    
                     return {"favor_size": favor_size, "target": chosen_neighbor.id, "action": "ask"}
                 return {"favor_size": None, "target": None, "action": "none"}
 
@@ -242,11 +254,15 @@ class Player:
             return 0
         return np.mean(self.recent_utilities)*2 # multiply by 2 to get the average utility per round instead of per favor_change
     
-    def decide_ask_for_help(self):
-        return self.strategy.ask_for_help(self, self.neighbors)
+    def decide_ask_for_help(self, asking_style):
+        return self.strategy.ask_for_help(self, self.neighbors, asking_style)
 
     def decide_respond_to_help(self, requester_id, favor_size):
         return self.strategy.respond_to_help(self, requester_id, favor_size)
+    
+    def pardon(self, pardon_size = 0.5):
+        if self.real_reputation < (1-pardon_size):
+            self.real_reputation += pardon_size
 
 class GameGrid:
     def __init__(self, L, N, strategy_generator_instance, diagonal_neighbors=True):
@@ -267,6 +283,7 @@ class GameGrid:
 
     def setup_random(self):
         """Randomly assign strategies to all players using the strategy generator."""
+        self.players = []
         for player_id in range(self.L * self.L):
             strategy = copy.deepcopy(random.choice(self.strategy_generator_instance.generate_all_strategies()))
             self.players.append(Player(player_id, strategy))
@@ -317,15 +334,16 @@ class GameGrid:
         return neighbors
 
 class Game:
-    def __init__(self, grid, utility_function, reputation_manager):
+    def __init__(self, grid, utility_function, reputation_manager, asking_style):
         self.grid = grid
         self.utility_function = utility_function
         self.reputation_manager = reputation_manager
+        self.asking_style = asking_style
 
     def one_round(self):
         players_in_order = self.grid.shuffle_players()
         for player in players_in_order:
-            ask_decision = player.decide_ask_for_help()
+            ask_decision = player.decide_ask_for_help(self.asking_style)
             if ask_decision["action"] == "ask":
                 target = next(p for p in player.neighbors if p.id == ask_decision["target"])
                 favor_size = ask_decision["favor_size"]
@@ -357,7 +375,7 @@ class UtilityFunction:
         raise NotImplementedError("This method should be implemented by subclasses.")
 
 class Evolution:
-    def __init__(self, game, inverse_copy_prob, inverse_mutation_prob, random_mutation=True):
+    def __init__(self, game, inverse_copy_prob, inverse_mutation_prob, inverse_pardon_prob, random_mutation=True):
         """
         Initialize the Evolution class.
         :param game: The Game instance.
@@ -368,6 +386,7 @@ class Evolution:
         self.game = game
         self.inverse_copy_prob = inverse_copy_prob
         self.inverse_mutation_prob = inverse_mutation_prob
+        self.inverse_pardon_prob = inverse_pardon_prob
         self.running = False  #Control flag for the evolution process
         self.history = []
         if random_mutation:
@@ -408,6 +427,13 @@ class Evolution:
                 # Adopt the strategy of the best-performing neighbor
                 player.strategy = copy.deepcopy(best_neighbor.strategy)
                 player.strategy_name = best_neighbor.strategy.name
+
+    def _pardon(self):
+        nPlayers = len(self.game.grid.players)
+        arg_pardon = np.random.rand(nPlayers)
+        indicies = np.where(arg_pardon < 1/self.inverse_pardon_prob)[0]
+        for i in indicies:
+            self.game.grid.players[i].pardon()
 
     def _mutate_both(self):
         """
@@ -462,6 +488,7 @@ class Evolution:
                 #print(f"Round: {iteration}")
                 self.game.one_round()
                 self._mutate()
+                self._pardon()
 
                 # Update Strategy Grid
                 strategy_grid = self._get_strategy_grid()
