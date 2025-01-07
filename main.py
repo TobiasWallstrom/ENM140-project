@@ -88,6 +88,16 @@ if __name__ == "__main__":
         evolution.plot_history(i)
         evolution.plot_average_utility(i)
         evolution.plot_average_reputation(i)
-        mean, std = evolution.get_average_moral_score()
+    '''
+    Sweeper = Analyze_hyper_paramter(
+        grid, 
+        utility_class=SimpleUtility,
+        rep_class=ReputationManager,
+        asking_style="random",
+        inverse_copy_prob=60,
+        inverse_mutation_prob=1000,
+        inverse_pardon_prob=200,
+        random_mutation=True)
 
-    
+    Sweeper.sweep_rep_loss(np.arange(0.005, 0.105, 0.005, ), rounds=5000, repetitions=5, save_path="plots/sweeps/rep_loss_sweep3.png")
+    '''

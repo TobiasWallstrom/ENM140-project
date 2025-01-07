@@ -497,7 +497,7 @@ class Evolution:
 
         print("Interactive GUI started. Use 'Start' and 'Stop' buttons to control the simulation.")
 
-        while plt.get_fignums() and iteration < 100:  # Keep running while the figure is open
+        while plt.get_fignums():  # Keep running while the figure is open
             if self.running:
                 self.run_evolution(1, record_data)
 
