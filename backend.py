@@ -773,7 +773,7 @@ class Evolution:
         self.history.append(history_entry)
 
 class Analyze_hyper_paramter:
-    def __init__(self, grid, utility_class, rep_class, asking_style, inverse_copy_prob, inverse_mutation_prob, inverse_pardon_prob, random_mutation=True):
+    def __init__(self, grid, utility_class, rep_class, asking_style, inverse_copy_prob, inverse_mutation_prob, inverse_pardon_prob, prob_power = 1, random_mutation=True):
         self.grid = grid
         self.utility_class = utility_class
         self.rep_class = rep_class
@@ -782,6 +782,7 @@ class Analyze_hyper_paramter:
         self.inverse_mutation_prob = inverse_mutation_prob
         self.inverse_pardon_prob = inverse_pardon_prob
         self.random_mutation = random_mutation
+        self.prob_power = prob_power
 
     def sweep_rep_loss(self, rep_loss_values, rounds=5000, plot_results=True, repetitions=3, save_path="plots/sweeps/plot.png"):
         """
@@ -793,7 +794,7 @@ class Analyze_hyper_paramter:
             moral_scores = []
             for _ in range(repetitions):
                 rep_manager = self.rep_class(loss_base=rep_loss)
-                game = Game(self.grid, self.utility_class(), rep_manager, self.asking_style)
+                game = Game(self.grid, self.utility_class(), rep_manager, self.asking_style, self.prob_power)
                 evolution = Evolution(game, self.inverse_copy_prob, self.inverse_mutation_prob, self.inverse_pardon_prob, self.random_mutation)
                 evolution.run_evolution(rounds, True, False)
                 analyzer = GameAnalyzer(game)
