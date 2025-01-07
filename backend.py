@@ -857,5 +857,64 @@ class Analyze_hyper_paramter:
 
         return results
 
-        
+    def sweep_neighbor_size(self, neighbor_values, rounds=5000, plot_results=True, repetitions=3, save_path="plots/sweeps/neighbor.png"):
+        """sweeps the neighbor size and plots the results"""
+        results = {}
+        for neighbor_size in neighbor_values:
+            print(f"Round {np.where(neighbor_values == neighbor_size)[0][0]+1} of {len(neighbor_values)}")
+            moral_scores = []
+            for n in range(repetitions):
+                print(f"Repetition {n+1} of {repetitions}")
+                grid = GameGrid(self.grid.L, neighbor_size, self.grid.strategy_generator_instance, self.grid.diagonal_neighbors)
+                rep_manager = self.rep_class()
+                game = Game(grid, self.utility_class(), rep_manager, self.asking_style, self.prob_power)
+                evolution = Evolution(game, self.inverse_copy_prob, self.inverse_mutation_prob, self.inverse_pardon_prob, self.random_mutation)
+                evolution.run_evolution(rounds, True, False)
+                analyzer = GameAnalyzer(game)
+                avg_score, std_score = analyzer.get_avrage_moral_score()
+                moral_scores.append(avg_score)
+
+            # Calculate mean and std across repetitions
+            results[neighbor_size] = (np.mean(moral_scores), np.std(moral_scores))
+
+        if plot_results:
+            neighbor_sizes = list(results.keys())
+            moral_scores = [score[0] for score in results.values()]
+            moral_score_stds = [score[1] for score in results.values()]
+
+            # Create the plot
+            plt.figure(figsize=(10, 6))
+            plt.errorbar(neighbor_sizes, moral_scores, yerr=moral_score_stds, fmt='-o', capsize=5, label='Average Moral Score')
+            plt.fill_between(neighbor_sizes, np.array(moral_scores) - np.array(moral_score_stds), np.array(moral_scores) + np.array(moral_score_stds), alpha=0.2)
+            plt.xlabel('Neighborhood Radius')
+            plt.ylabel('Average Moral Score')
+            plt.title('Average Moral Score vs. Neighborhood Radius')
+            plt.legend()
+            plt.grid(True)
+            plt.tight_layout()
+            plt.savefig(save_path)
+            plt.show()
+
+            # Save EXIF metadata
+            metadata = {
+                "Grid Size": self.grid.L,
+                "Reputation Loss Base Value": self.rep_class.loss_base,
+                "Inverse Copy Probability": self.inverse_copy_prob,
+                "Inverse Mutation Probability": self.inverse_mutation_prob,
+                "Inverse Pardon Probability": self.inverse_pardon_prob,
+                "Repetitions": repetitions,
+                "Rounds Per Simulation": rounds,
+            }
+
+            # Open the plot and add EXIF metadata
+            img = Image.open(save_path)
+            exif_data = {
+                TAGS.get(tag, tag): val
+                for tag, val in img.info.get("exif", {}).items()
+            }
+            for key, value in metadata.items():
+                exif_data[key] = value
+            
+            # Save the updated image with EXIF metadata
+            img.save(save_path, exif=img.info.get("exif"))
     

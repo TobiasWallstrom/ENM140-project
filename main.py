@@ -36,9 +36,9 @@ class ReputationManager:
         self.reputation_scaler = 1.5
 
     def update_reputation(self, asking, helping, action, favor_size):
-        if helping.get_average_utility_per_round() < 0: # Edited for promoting lonewolves. Comment out for old program
+        """if helping.get_average_utility_per_round() < 0: # Edited for promoting lonewolves. Comment out for old program
             reputation_change_asking = self.loss_base * favor_size * (1 + asking.real_reputation/self.reputation_scaler)/3
-            asking.real_reputation = max(self.min_reputation, asking.real_reputation - reputation_change_asking)
+            asking.real_reputation = max(self.min_reputation, asking.real_reputation - reputation_change_asking)"""
         if action == "accept":
             reputation_change = self.gain_base * favor_size
             helping.real_reputation = min(self.max_reputation, helping.real_reputation + reputation_change)
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     #grid.setup_from_bitcodes(own_grid)
     grid.setup_random()
     
-    powers = np.linspace(1.5,1.6,10)
+    """powers = np.linspace(1.5,1.6,10)
     print(powers)
     moral_score = np.zeros((10,2))
     for i, power in enumerate(powers):
@@ -87,10 +87,10 @@ if __name__ == "__main__":
         evolution.run_interactive(record_data = True, plotting_frequenz=1000)
         evolution.plot_history(i)
         evolution.plot_average_utility(i)
-        evolution.plot_average_reputation(i)
-    '''
+        evolution.plot_average_reputation(i)"""
+    
     Sweeper = Analyze_hyper_paramter(
-        grid, 
+        GameGrid(15, N, strategy_generator_instance, diagonal_neighbors=True), 
         utility_class=SimpleUtility,
         rep_class=ReputationManager,
         asking_style="random",
@@ -99,5 +99,6 @@ if __name__ == "__main__":
         inverse_pardon_prob=200,
         random_mutation=True)
 
-    Sweeper.sweep_rep_loss(np.arange(0.005, 0.105, 0.005, ), rounds=5000, repetitions=5, save_path="plots/sweeps/rep_loss_sweep3.png")
-    '''
+    #Sweeper.sweep_rep_loss(np.arange(0.005, 0.105, 0.005 ), rounds=5000, repetitions=3, save_path="plots/sweeps/rep_loss_sweep4.png")
+    Sweeper.sweep_neighbor_size(np.arange(1, 15, 1), rounds=5000, repetitions=5, save_path="plots/sweeps/neighbor_size_sweep2.png")
+    
