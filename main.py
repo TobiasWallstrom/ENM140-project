@@ -53,7 +53,7 @@ if __name__ == "__main__":
         reputation_values=[-1, 1]
     )
 
-    #print([strategie.bitcode for strategie in strategy_generator_instance.generate_all_strategies()])
+    #print([(strategie.bitcode, strategie.moral_score) for strategie in strategy_generator_instance.generate_all_strategies()])
 
     grid = GameGrid(L, N, strategy_generator_instance, diagonal_neighbors=True)
     own_grid = [
@@ -69,13 +69,25 @@ if __name__ == "__main__":
 
     
     grid.setup_from_bitcodes(own_grid)
-    #grid.setup_random()
+    grid.setup_random()
     
-    game = Game(grid, SimpleUtility(), ReputationManager(), asking_style = "random") ## Choose and asking_style between "random", "best" and "distributed"
+    game = Game(grid, SimpleUtility(), ReputationManager(gain_base=0.1, loss_base=0.01), asking_style = "random") ## Choose and asking_style between "random", "best" and "distributed"
 
-    evolution = Evolution(game, inverse_copy_prob=60, inverse_mutation_prob=1000, inverse_pardon_prob=200, random_mutation=True)
-    evolution.run_interactive(record_data = True, plotting_frequenz=300)
-    evolution.plot_history()
+    #evolution = Evolution(game, inverse_copy_prob=60, inverse_mutation_prob=1000, inverse_pardon_prob=200, random_mutation=True)
+    #evolution.run_interactive(record_data = True, plotting_frequenz=30)
+    #evolution.plot_history()
+
+    Sweeper = Analyze_hyper_paramter(
+        grid, 
+        utility_class=SimpleUtility,
+        rep_class=ReputationManager,
+        asking_style="random",
+        inverse_copy_prob=60,
+        inverse_mutation_prob=1000,
+        inverse_pardon_prob=200,
+        random_mutation=True)
+    
+    Sweeper.sweep_rep_loss(np.arange(0.005, 0.105, 0.005, ), rounds=5000, repetitions=5, save_path="plots/sweeps/rep_loss_sweep3.png")
     
 
     
