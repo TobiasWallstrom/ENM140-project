@@ -157,6 +157,7 @@ class StrategyGenerator:
                 raw_name = "".join(map(str, self.decisions.values()))
                 self.bitcode = raw_name
                 self.name = raw_name[:2] + "-" + raw_name[2:]
+                self.moral_score = raw_name[2:].count("1") #form 0 to 4
 
 
             def flip_random_bit(self):
@@ -184,6 +185,7 @@ class StrategyGenerator:
                             self.bitcode = strategy.bitcode
                             self.name = strategy.name  # Synchronize name with the bitcode
                             self.color = strategy.color  # Synchronize color with the bitcode
+                            self.moral_score = strategy.moral_score
                             return
 
                     # Revert the bit if no match is found
@@ -191,7 +193,7 @@ class StrategyGenerator:
 
                 raise ValueError("No matching strategy found after flipping all bits.")
 
-            def ask_for_help(self, player, neighbors, asking_style="random"):
+            def ask_for_help(self, player, neighbors, asking_style="random", prob_power = 1):
                 favor_size = random.choices(super_favor_sizes, weights=[0.5, 0.5])[0]
                 if ("ask", favor_size) in self.decisions and self.decisions[("ask", favor_size)] == 1 and neighbors:
                     if asking_style == "random":
@@ -204,7 +206,7 @@ class StrategyGenerator:
                         chosen_neighbor = random.choice(best_neighbors) if len(best_neighbors) > 1 else best_neighbors[0]
 
                     if asking_style == "distributed":
-                        neighbors_rep = [n.public_reputation + 2 for n in neighbors]
+                        neighbors_rep = [(n.public_reputation + 2)**prob_power for n in neighbors]
                         total_rep = sum(neighbors_rep)
                         weights = [x/total_rep for x in neighbors_rep]
                         chosen_neighbor = np.random.choice(neighbors, 1, p=weights)[0]
@@ -254,8 +256,8 @@ class Player:
             return 0
         return np.mean(self.recent_utilities)*2 # multiply by 2 to get the average utility per round instead of per favor_change
     
-    def decide_ask_for_help(self, asking_style):
-        return self.strategy.ask_for_help(self, self.neighbors, asking_style)
+    def decide_ask_for_help(self, asking_style, prob_power):
+        return self.strategy.ask_for_help(self, self.neighbors, asking_style, prob_power)
 
     def decide_respond_to_help(self, requester_id, favor_size):
         return self.strategy.respond_to_help(self, requester_id, favor_size)
@@ -334,16 +336,17 @@ class GameGrid:
         return neighbors
 
 class Game:
-    def __init__(self, grid, utility_function, reputation_manager, asking_style):
+    def __init__(self, grid, utility_function, reputation_manager, asking_style, prob_power):
         self.grid = grid
         self.utility_function = utility_function
         self.reputation_manager = reputation_manager
         self.asking_style = asking_style
+        self.prob_power = prob_power
 
     def one_round(self):
         players_in_order = self.grid.shuffle_players()
         for player in players_in_order:
-            ask_decision = player.decide_ask_for_help(self.asking_style)
+            ask_decision = player.decide_ask_for_help(self.asking_style, self.prob_power)
             if ask_decision["action"] == "ask":
                 target = next(p for p in player.neighbors if p.id == ask_decision["target"])
                 favor_size = ask_decision["favor_size"]
@@ -387,7 +390,7 @@ class Evolution:
         self.inverse_copy_prob = inverse_copy_prob
         self.inverse_mutation_prob = inverse_mutation_prob
         self.inverse_pardon_prob = inverse_pardon_prob
-        self.running = False  #Control flag for the evolution process
+        self.running = True  #Control flag for the evolution process
         self.history = []
         if random_mutation:
             self._mutate = self._mutate_both
@@ -480,11 +483,11 @@ class Evolution:
 
         btn_start.on_clicked(self._start)
         btn_stop.on_clicked(self._stop)
-        plt.show()
+        #plt.show()
 
         print("Interactive GUI started. Use 'Start' and 'Stop' buttons to control the simulation.")
 
-        while plt.get_fignums():  # Keep running while the figure is open
+        while plt.get_fignums() and iteration < 100:  # Keep running while the figure is open
             if self.running:
                 if iteration % 250 == 0:
                     print(f"Round: {iteration}")
@@ -505,8 +508,8 @@ class Evolution:
                 if record_data:
                     self._record_history(iteration)
 
-            if iteration == 1 or iteration % plotting_frequenz == 0:   
-                plt.pause(0.01)  # Allow GUI updates'
+            #if iteration == 1 or iteration % plotting_frequenz == 0:   
+                #plt.pause(0.01)  # Allow GUI updates'
         
         plt.close(fig)
 
@@ -612,7 +615,7 @@ class Evolution:
 
         return table
 
-    def plot_history(self):
+    def plot_history(self, power):
         """
         Plot the recorded history of strategies over iterations.
         """
@@ -661,7 +664,74 @@ class Evolution:
         plt.tight_layout()
 
         # Show or save the plot
-        plt.show(block=True)  # Use plt.savefig("strategy_history.png") to save as a file
+        plt.savefig(str(power)+".png")
+        plt.close()
+
+    def plot_average_utility(self, iteration):
+        """
+        Plot the average utility of all players over time.
+        """
+        if not self.history:
+            print("No history to plot.")
+            return
+
+        # Prepare data for plotting
+        iterations = [entry["iteration"] for entry in self.history]
+        average_utilities = []
+
+        for entry in self.history:
+            # Calculate the overall average utility across all strategies for this iteration
+            total_utility = sum(
+                strat["mean_utility"] * (strat["percentage"] / 100) for strat in entry["strategies"]
+            )
+            average_utilities.append(total_utility)
+
+        # Plot the average utility over time
+        plt.figure(figsize=(10, 5))
+        plt.plot(iterations, average_utilities, linestyle="-", color="blue")
+        plt.title("Average Utility of All Players Over Time")
+        plt.xlabel("Iteration")
+        plt.ylabel("Average Utility")
+        plt.grid()
+        plt.tight_layout()
+
+        # Save or show the plot
+        plt.savefig(str(iteration) + "utility.png")
+        print("Plot saved as 'average_utility_over_time.png'.")
+        plt.close()
+    
+    def plot_average_reputation(self, iteration):
+        """
+        Plot the average reputation of all players over time.
+        """
+        if not self.history:
+            print("No history to plot.")
+            return
+
+        # Prepare data for plotting
+        iterations = [entry["iteration"] for entry in self.history]
+        average_reputations = []
+
+        for entry in self.history:
+            # Calculate the overall average reputation across all strategies for this iteration
+            total_reputation = sum(
+                strat["mean_reputation"] * (strat["percentage"] / 100) for strat in entry["strategies"]
+            )
+            average_reputations.append(total_reputation)
+
+        # Plot the average reputation over time
+        plt.figure(figsize=(10, 5))
+        plt.plot(iterations, average_reputations, linestyle="-", color="green")
+        plt.title("Average Reputation of All Players Over Time")
+        plt.xlabel("Iteration")
+        plt.ylabel("Average Reputation")
+        plt.grid()
+        plt.tight_layout()
+
+        # Save or show the plot
+        plt.savefig(str(iteration)+"reputation.png")
+        print("Plot saved as 'average_reputation_over_time.png'.")
+        plt.close()
 
     def _record_history(self, iteration):
         """
@@ -688,3 +758,10 @@ class Evolution:
             })
 
         self.history.append(history_entry)
+
+    def get_average_moral_score(self):
+        # calculate the moral score with std of the total game weighted by the number of players with the strategy
+        moral_scores = []
+        for player in self.game.grid.players:
+            moral_scores.append(player.strategy.moral_score)
+        return np.mean(moral_scores), np.std(moral_scores)
