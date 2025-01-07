@@ -56,7 +56,7 @@ if __name__ == "__main__":
         reputation_values=[-1, 1]
     )
 
-    #print([strategie.bitcode for strategie in strategy_generator_instance.generate_all_strategies()])
+    #print([(strategie.bitcode, strategie.moral_score) for strategie in strategy_generator_instance.generate_all_strategies()])
 
     grid = GameGrid(L, N, strategy_generator_instance, diagonal_neighbors=True)
     '''#own_grid = [
@@ -81,7 +81,7 @@ if __name__ == "__main__":
         random.seed(10)
         grid.setup_random()
         print(power)
-        game = Game(grid, SimpleUtility(), ReputationManager(), asking_style = "distributed", prob_power=power) ## Choose and asking_style between "random", "best" and "distributed"
+        game = Game(grid, SimpleUtility(), ReputationManager(gain_base=0.1, loss_base=0.01), asking_style = "distributed", prob_power=power) ## Choose and asking_style between "random", "best" and "distributed"
 
         evolution = Evolution(game, inverse_copy_prob=60, inverse_mutation_prob=1000, inverse_pardon_prob=200, random_mutation=True)
         evolution.run_interactive(record_data = True, plotting_frequenz=1000)

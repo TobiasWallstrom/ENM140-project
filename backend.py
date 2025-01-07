@@ -5,6 +5,8 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 import copy
+from PIL import Image
+from PIL.ExifTags import TAGS
 
 class GameAnalyzer:
     def __init__(self, game):
@@ -61,6 +63,13 @@ class GameAnalyzer:
             print(f"Reputation {reputation}: {count} players")
 
         print("=" * 30)
+
+    def get_avrage_moral_score(self):
+        # calculate the moral score with std of the total game weighted by the number of players with the strategy
+        moral_scores = []
+        for player in self.game.grid.players:
+            moral_scores.append(player.strategy.moral_score)
+        return np.mean(moral_scores), np.std(moral_scores)
 
 class StrategyGenerator:
     def __init__(self, favor_sizes, reputation_values, filter_strategies=True):
@@ -396,6 +405,7 @@ class Evolution:
             self._mutate = self._mutate_both
         else:
             self._mutate = self._mutate_copy
+        self.iteration = 0
 
     def _start(self, event):
         """Start the evolution."""
@@ -472,8 +482,8 @@ class Evolution:
         self.update_strategy_table(self.strategy_table)
 
         # Iteration Counter
-        iteration = 0
-        iteration_text = fig.text(0.5, 0.05, f"Iteration: {iteration}", ha='center', va='center', fontsize=12)
+        #iteration = 0
+        iteration_text = fig.text(0.5, 0.05, f"Iteration: {self.iteration}", ha='center', va='center', fontsize=12)
 
         # Buttons
         ax_start = plt.axes([0.1, 0.05, 0.1, 0.075])
@@ -489,11 +499,7 @@ class Evolution:
 
         while plt.get_fignums() and iteration < 100:  # Keep running while the figure is open
             if self.running:
-                if iteration % 250 == 0:
-                    print(f"Round: {iteration}")
-                self.game.one_round()
-                self._mutate()
-                self._pardon()
+                self.run_evolution(1, record_data)
 
                 # Update Strategy Grid
                 strategy_grid = self._get_strategy_grid()
@@ -502,16 +508,23 @@ class Evolution:
                 # Update Strategy Overview Table
                 self.update_strategy_table(self.strategy_table)
                 # Update Iteration Counter
-                iteration += 1
-                iteration_text.set_text(f"Iteration: {iteration}")
-                
-                if record_data:
-                    self._record_history(iteration)
+                iteration_text.set_text(f"Iteration: {self.iteration}")
 
-            #if iteration == 1 or iteration % plotting_frequenz == 0:   
-                #plt.pause(0.01)  # Allow GUI updates'
+            if self.iteration == 1 or self.iteration % plotting_frequenz == 0:   
+                plt.pause(0.01)  # Allow GUI updates'
         
         plt.close(fig)
+
+    def run_evolution(self, rounds, record_data = True, print_rounds = True):
+        for _ in range(rounds):
+            if self.iteration % 250 == 0 and print_rounds:
+                print(f"Round: {self.iteration}")
+            self.game.one_round()
+            self._mutate()
+            self._pardon()
+            self.iteration += 1
+            if record_data:
+                self._record_history(self.iteration)
 
     def _get_strategy_grid(self):
         """
@@ -759,9 +772,79 @@ class Evolution:
 
         self.history.append(history_entry)
 
-    def get_average_moral_score(self):
-        # calculate the moral score with std of the total game weighted by the number of players with the strategy
-        moral_scores = []
-        for player in self.game.grid.players:
-            moral_scores.append(player.strategy.moral_score)
-        return np.mean(moral_scores), np.std(moral_scores)
+class Analyze_hyper_paramter:
+    def __init__(self, grid, utility_class, rep_class, asking_style, inverse_copy_prob, inverse_mutation_prob, inverse_pardon_prob, random_mutation=True):
+        self.grid = grid
+        self.utility_class = utility_class
+        self.rep_class = rep_class
+        self.asking_style = asking_style
+        self.inverse_copy_prob = inverse_copy_prob
+        self.inverse_mutation_prob = inverse_mutation_prob
+        self.inverse_pardon_prob = inverse_pardon_prob
+        self.random_mutation = random_mutation
+
+    def sweep_rep_loss(self, rep_loss_values, rounds=5000, plot_results=True, repetitions=3, save_path="plots/sweeps/plot.png"):
+        """
+        Sweep the reputation loss base values, analyze the results, and save the plot with EXIF metadata.
+        """
+        results = {}
+        for rep_loss in rep_loss_values:
+            print(f"Round {np.where(rep_loss_values == rep_loss)[0][0]+1} of {len(rep_loss_values)}")
+            moral_scores = []
+            for _ in range(repetitions):
+                rep_manager = self.rep_class(loss_base=rep_loss)
+                game = Game(self.grid, self.utility_class(), rep_manager, self.asking_style)
+                evolution = Evolution(game, self.inverse_copy_prob, self.inverse_mutation_prob, self.inverse_pardon_prob, self.random_mutation)
+                evolution.run_evolution(rounds, True, False)
+                analyzer = GameAnalyzer(game)
+                avg_score, std_score = analyzer.get_avrage_moral_score()
+                moral_scores.append(avg_score)
+
+            # Calculate mean and std across repetitions
+            results[rep_loss] = (np.mean(moral_scores), np.std(moral_scores))
+
+        if plot_results:
+            rep_losses = list(results.keys())
+            moral_scores = [score[0] for score in results.values()]
+            moral_score_stds = [score[1] for score in results.values()]
+
+            # Create the plot
+            plt.figure(figsize=(10, 6))
+            plt.errorbar(rep_losses, moral_scores, yerr=moral_score_stds, fmt='-o', capsize=5, label='Average Moral Score')
+            plt.fill_between(rep_losses, np.array(moral_scores) - np.array(moral_score_stds), np.array(moral_scores) + np.array(moral_score_stds), alpha=0.2)
+            plt.xlabel('Reputation Loss Base Value')
+            plt.ylabel('Average Moral Score')
+            plt.title('Average Moral Score vs. Reputation Loss Base Value')
+            plt.legend()
+            plt.grid(True)
+            plt.tight_layout()
+            plt.savefig(save_path)
+            plt.show()
+
+            # Save EXIF metadata
+            metadata = {
+                "Grid Size": self.grid.L,
+                "Neighborhood Radius": self.grid.N,
+                "Inverse Copy Probability": self.inverse_copy_prob,
+                "Inverse Mutation Probability": self.inverse_mutation_prob,
+                "Inverse Pardon Probability": self.inverse_pardon_prob,
+                "Repetitions": repetitions,
+                "Rounds Per Simulation": rounds,
+            }
+
+            # Open the plot and add EXIF metadata
+            img = Image.open(save_path)
+            exif_data = {
+                TAGS.get(tag, tag): val
+                for tag, val in img.info.get("exif", {}).items()
+            }
+            for key, value in metadata.items():
+                exif_data[key] = value
+
+            # Save the updated image with EXIF metadata
+            img.save(save_path, exif=img.info.get("exif"))
+
+        return results
+
+        
+    
