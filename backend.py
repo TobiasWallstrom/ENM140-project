@@ -344,6 +344,16 @@ class GameGrid:
                     neighbors.append(nx * self.L + ny)
         return neighbors
 
+    def change_L(self, new_L):
+        self.L = new_L
+        self.setup_random()
+        self._precompute_neighbors()
+
+    def change_N(self, new_N):
+        self.N = new_N
+        self.setup_random()
+        self._precompute_neighbors()    
+
 class Game:
     def __init__(self, grid, utility_function, reputation_manager, asking_style, prob_power):
         self.grid = grid
@@ -399,7 +409,7 @@ class Evolution:
         self.inverse_copy_prob = inverse_copy_prob
         self.inverse_mutation_prob = inverse_mutation_prob
         self.inverse_pardon_prob = inverse_pardon_prob
-        self.running = True  #Control flag for the evolution process
+        self.running = False  #Control flag for the evolution process
         self.history = []
         if random_mutation:
             self._mutate = self._mutate_both
@@ -493,7 +503,7 @@ class Evolution:
 
         btn_start.on_clicked(self._start)
         btn_stop.on_clicked(self._stop)
-        #plt.show()
+        plt.show()
 
         print("Interactive GUI started. Use 'Start' and 'Stop' buttons to control the simulation.")
 
