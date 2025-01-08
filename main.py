@@ -122,23 +122,23 @@ if __name__ == "__main__":
     #grid.setup_from_bitcodes(own_grid)
     grid.setup_random()
 
-    plot_grid_player_and_neighbors(grid, player_id=23)
+    #plot_grid_player_and_neighbors(grid, player_id=23)
     
     
-    """powers = [0.5]
+    powers = [0.5]
     print(powers)
     for i, power in enumerate(powers):
         random.seed(10)
         grid.setup_random()
         print(power)
-        game = Game(grid, SimpleUtility(), ReputationManager(gain_base=0.1, loss_base=0.1), asking_style = "distributed", prob_power=power) ## Choose and asking_style between "random", "best" and "distributed"
+        game = Game(grid, SimpleUtility(), ReputationManager(gain_base=0.1, loss_base=0.1), asking_style = "distributed", prob_power=power, favor_sizes = [1,3]) ## Choose and asking_style between "random", "best" and "distributed"
 
         evolution = Evolution(game, inverse_copy_prob=60, inverse_mutation_prob=1000, inverse_pardon_prob=200, random_mutation=True)
-        evolution.run_evolution(rounds = 5000)
+        evolution.run_evolution(rounds = 1000)
         evolution.plot_history(i)
         evolution.plot_average_utility(i)
         evolution.plot_average_reputation(i)
-    
+    '''
     Sweeper = Analyze_hyper_paramter(
         GameGrid(15, N, strategy_generator_instance, diagonal_neighbors=True), 
         utility_class=SimpleUtility,
@@ -152,4 +152,4 @@ if __name__ == "__main__":
 
     #Sweeper.sweep_rep_loss(np.arange(0.005, 0.105, 0.005 ), rounds=5000, repetitions=3, save_path="plots/sweeps/rep_loss_sweep4.png")
     Sweeper.sweep_neighbor_size(np.arange(1, 15, 1), rounds=5000, repetitions=5, save_path="plots/sweeps/neighbor_size_sweep2.png")
-    """
+    '''
