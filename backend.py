@@ -243,26 +243,39 @@ class Player:
         self.public_reputation = 1  # Public reputation as a discrete value (-1 or 1)
         self.neighbors = []  # List of neighboring players
         self.recent_utilities = []  # Utilities from the last x rounds
-        self.max_recent_rounds = 20  # Maximum number of recent rounds to track
+        self.interactions_per_round = []
+        self.max_recent_rounds = 10  # Maximum number of recent rounds to track
         self.all_utilities = []
+        self.times_asked = 0 
 
     def update_utility(self, utility_change):
         self.total_utility += utility_change
         self.recent_utilities.append(utility_change)
         self.all_utilities.append(utility_change)
 
+        '''
         # Keep only the last x rounds
-        if len(self.recent_utilities) > self.max_recent_rounds:
-            self.recent_utilities.pop(0)
+        if len(self.recent_utilities) > total_interaction:
+            self.recent_utilities.pop(0)'''
+
+    def update_interactions_per_round(self):
+        self.interactions_per_round.append(self.times_asked + 1)
+        self.times_asked = 0
+        
+        if len(self.interactions_per_round) > self.max_recent_rounds:
+            self.recent_utilities = self.recent_utilities[self.interactions_per_round[0]:]
+            self.interactions_per_round = self.interactions_per_round[1:]
+            
 
     def update_reputation(self, reputation_change, max_reputation=1, min_reputation=-1):
         self.real_reputation = min(max_reputation, max(min_reputation, self.real_reputation + reputation_change))
         self.public_reputation = max_reputation if self.real_reputation >= 0 else min_reputation
 
     def get_average_utility_per_round(self):
-        if len(self.recent_utilities) == 0:
+        if not (self.recent_utilities and self.interactions_per_round):
             return 0
-        return np.mean(self.recent_utilities)*2 # multiply by 2 to get the average utility per round instead of per favor_change
+        avg_utility = sum(self.recent_utilities)/len(self.interactions_per_round)
+        return avg_utility # multiply by 2 to get the average utility per round instead of per favor_change
     
     def decide_ask_for_help(self, asking_style, prob_power):
         return self.strategy.ask_for_help(self, self.neighbors, asking_style, prob_power)
@@ -381,6 +394,11 @@ class Game:
                     target.update_utility(utility_responder)
                     #self.reputation_manager.update_reputation(player, "reject", favor_size)
                     self.reputation_manager.update_reputation(player, target, "reject", favor_size)
+                target.times_asked += 1
+            else:
+                player.update_utility(0)
+        for player in players_in_order:
+            player.update_interactions_per_round()
 
     def play_rounds(self, num_rounds):
         for _ in range(num_rounds):

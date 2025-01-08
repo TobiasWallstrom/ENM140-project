@@ -23,7 +23,7 @@ class SimpleUtility(UtilityFunction):
         if action == "cooperate":
             return favor_size, -favor_size/2
         elif action == "reject":
-            return -favor_size/3, 0
+            return 0, 0
         else:  # No action
             return 0, 0
         
@@ -125,17 +125,16 @@ if __name__ == "__main__":
     plot_grid_player_and_neighbors(grid, player_id=23)
     
     
-    """powers = np.linspace(1.5,1.6,10)
+    """powers = [0.5]
     print(powers)
-    moral_score = np.zeros((10,2))
     for i, power in enumerate(powers):
         random.seed(10)
         grid.setup_random()
         print(power)
-        game = Game(grid, SimpleUtility(), ReputationManager(gain_base=0.1, loss_base=0.01), asking_style = "distributed", prob_power=power) ## Choose and asking_style between "random", "best" and "distributed"
+        game = Game(grid, SimpleUtility(), ReputationManager(gain_base=0.1, loss_base=0.1), asking_style = "distributed", prob_power=power) ## Choose and asking_style between "random", "best" and "distributed"
 
         evolution = Evolution(game, inverse_copy_prob=60, inverse_mutation_prob=1000, inverse_pardon_prob=200, random_mutation=True)
-        evolution.run_interactive(record_data = True, plotting_frequenz=1000)
+        evolution.run_evolution(rounds = 5000)
         evolution.plot_history(i)
         evolution.plot_average_utility(i)
         evolution.plot_average_reputation(i)
@@ -144,10 +143,11 @@ if __name__ == "__main__":
         GameGrid(15, N, strategy_generator_instance, diagonal_neighbors=True), 
         utility_class=SimpleUtility,
         rep_class=ReputationManager,
-        asking_style="random",
+        asking_style="distributed",
         inverse_copy_prob=60,
         inverse_mutation_prob=1000,
         inverse_pardon_prob=200,
+        prob_power = 1.3,
         random_mutation=True)
 
     #Sweeper.sweep_rep_loss(np.arange(0.005, 0.105, 0.005 ), rounds=5000, repetitions=3, save_path="plots/sweeps/rep_loss_sweep4.png")
