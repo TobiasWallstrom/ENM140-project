@@ -97,8 +97,10 @@ if __name__ == "__main__":
         inverse_copy_prob=60,
         inverse_mutation_prob=1000,
         inverse_pardon_prob=200,
-        random_mutation=True)
+        random_mutation=True,
+        prob_power=1.2
+        )
 
     #Sweeper.sweep_rep_loss(np.arange(0.005, 0.105, 0.005 ), rounds=5000, repetitions=3, save_path="plots/sweeps/rep_loss_sweep4.png")
-    Sweeper.sweep_neighbor_size(np.arange(1, 15, 1), rounds=5000, repetitions=5, save_path="plots/sweeps/neighbor_size_sweep2.png")
+    Sweeper.sweep_neighbor_size(np.arange(1, 15, 3), rounds=5000, repetitions=2, save_path="plots/sweeps/neighbor_size_sweep4.png")
     
