@@ -23,7 +23,7 @@ class SimpleUtility(UtilityFunction):
         if action == "cooperate":
             return favor_size, -favor_size/2
         elif action == "reject":
-            return -favor_size/3, 0
+            return 0, 0
         else:  # No action
             return 0, 0
         
@@ -46,6 +46,54 @@ class ReputationManager:
             reputation_change = self.loss_base * favor_size * (1 + asking.real_reputation/self.reputation_scaler)
             helping.real_reputation = max(self.min_reputation, helping.real_reputation - reputation_change)
         helping.public_reputation = 1 if helping.real_reputation >= 0 else -1
+
+
+def plot_grid_player_and_neighbors(grid, player_id):
+    """ plot the grid and fill the square of the player and its neighbors"""
+    fig, ax = plt.subplots()
+
+    # limits of the plot
+    grid_size = grid.L
+    ax.set_xlim(0, grid_size)
+    ax.set_ylim(0, grid_size)
+
+    # let y-axis start at left upper corner and increase downward
+    plt.gca().invert_yaxis()
+
+    # Create grid using a mesh
+    for x in range(grid_size):
+        ax.axhline(x, color='gray', linestyle='-', linewidth=0.5)
+        ax.axvline(x, color='gray', linestyle='-', linewidth=0.5)
+
+    # Color the player-cell
+    row, col = divmod(player_id, grid_size)
+    ax.add_patch(plt.Rectangle((col, row), 1, 1, color='lightblue'))
+
+    # Color the neighboring cells
+    player = grid.players[player_id]
+    neighbors = player.neighbors 
+
+    for nb in neighbors:
+        row, col = divmod(nb.id, grid_size)
+        # Create grid of dots inside the cell
+        dot_spacing = 0.1  
+        dot_radius = 0.03 
+        dot_positions_x = np.arange(col + dot_spacing / 2, col + 1, dot_spacing)
+        dot_positions_y = np.arange(row + dot_spacing / 2, row + 1, dot_spacing)
+        # Add dots as circles to the plot
+        for x in dot_positions_x:
+            for y in dot_positions_y:
+                circle = plt.Circle((x, y), dot_radius, color='lightgreen', lw=0)
+                ax.add_artist(circle)
+
+    # Remove ticks and labels
+    ax.set_xticks([])
+    ax.set_yticks([])
+    # Set aspect ratio to be equal to ensure square grid cells
+    ax.set_aspect('equal')
+
+    plt.show()
+
 
 if __name__ == "__main__":
     L = 10  # Grid size
@@ -73,34 +121,35 @@ if __name__ == "__main__":
     
     #grid.setup_from_bitcodes(own_grid)
     grid.setup_random()
+
+    plot_grid_player_and_neighbors(grid, player_id=23)
     
-    """powers = np.linspace(1.5,1.6,10)
+    
+    """powers = [0.5]
     print(powers)
-    moral_score = np.zeros((10,2))
     for i, power in enumerate(powers):
         random.seed(10)
         grid.setup_random()
         print(power)
-        game = Game(grid, SimpleUtility(), ReputationManager(gain_base=0.1, loss_base=0.01), asking_style = "distributed", prob_power=power) ## Choose and asking_style between "random", "best" and "distributed"
+        game = Game(grid, SimpleUtility(), ReputationManager(gain_base=0.1, loss_base=0.1), asking_style = "distributed", prob_power=power) ## Choose and asking_style between "random", "best" and "distributed"
 
         evolution = Evolution(game, inverse_copy_prob=60, inverse_mutation_prob=1000, inverse_pardon_prob=200, random_mutation=True)
-        evolution.run_interactive(record_data = True, plotting_frequenz=1000)
+        evolution.run_evolution(rounds = 5000)
         evolution.plot_history(i)
         evolution.plot_average_utility(i)
-        evolution.plot_average_reputation(i)"""
+        evolution.plot_average_reputation(i)
     
     Sweeper = Analyze_hyper_paramter(
         GameGrid(15, N, strategy_generator_instance, diagonal_neighbors=True), 
         utility_class=SimpleUtility,
         rep_class=ReputationManager,
-        asking_style="random",
+        asking_style="distributed",
         inverse_copy_prob=60,
         inverse_mutation_prob=1000,
         inverse_pardon_prob=200,
-        random_mutation=True,
-        prob_power=1.2
-        )
+        prob_power = 1.3,
+        random_mutation=True)
 
     #Sweeper.sweep_rep_loss(np.arange(0.005, 0.105, 0.005 ), rounds=5000, repetitions=3, save_path="plots/sweeps/rep_loss_sweep4.png")
-    Sweeper.sweep_neighbor_size(np.arange(1, 15, 3), rounds=5000, repetitions=2, save_path="plots/sweeps/neighbor_size_sweep4.png")
-    
+    Sweeper.sweep_neighbor_size(np.arange(1, 15, 1), rounds=5000, repetitions=5, save_path="plots/sweeps/neighbor_size_sweep2.png")
+    """
