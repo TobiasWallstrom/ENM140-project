@@ -17,7 +17,7 @@ class SimpleUtility(UtilityFunction):
     def calculate(self, action, favor_size):
         """
         Simple utility calculation:
-        - Cooperation: Requester gains +favor_size, responder loses -favor_size.
+        - Cooperation: Requester gains +favor_size, responder loses -favor_size/2.
         - Rejection: No utility change.
         """
         if action == "cooperate":
@@ -36,9 +36,9 @@ class ReputationManager:
         self.reputation_scaler = 1.5
 
     def update_reputation(self, asking, helping, action, favor_size):
-        """if helping.get_average_utility_per_round() < 0: # Edited for promoting lonewolves. Comment out for old program
+        if helping.get_average_utility_per_round() < 0: # Edited for promoting lonewolves. Comment out for old program
             reputation_change_asking = self.loss_base * favor_size * (1 + asking.real_reputation/self.reputation_scaler)/3
-            asking.real_reputation = max(self.min_reputation, asking.real_reputation - reputation_change_asking)"""
+            asking.real_reputation = max(self.min_reputation, asking.real_reputation - reputation_change_asking)
         if action == "accept":
             reputation_change = self.gain_base * favor_size
             helping.real_reputation = min(self.max_reputation, helping.real_reputation + reputation_change)

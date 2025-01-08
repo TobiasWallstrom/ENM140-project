@@ -133,7 +133,7 @@ class StrategyGenerator:
 
     def generate_all_strategies(self):
         """Generate all possible logical strategies and assign unique colors."""
-        if not self.strategy_list:  # Vermeide doppelte Erstellung
+        if not self.strategy_list:  # Avoid duplicate creation
             num_situations = len(self.situations)
             strategies = []
 
@@ -143,15 +143,15 @@ class StrategyGenerator:
                     strategy = self._create_strategy(decisions)
                     strategies.append(strategy)
 
-                    # Farbzuweisung
+                    # Color assignment
                     if strategy.bitcode not in self.strategy_color_map:
                         self.strategy_color_map[strategy.bitcode] = self._generate_random_color()
 
-            # Farben synchronisieren
+            # Synchronize colors
             for strategy in strategies:
                 strategy.color = self.strategy_color_map[strategy.bitcode]
 
-            self.strategy_list = strategies  # Strategien speichern
+            self.strategy_list = strategies  # Save strategies
 
         return self.strategy_list
 
@@ -210,7 +210,7 @@ class StrategyGenerator:
                         best_neighbors = [
                             n for n in neighbors if n.public_reputation == max(neighbors, key=lambda n: n.public_reputation).public_reputation
                         ]
-                        chosen_neighbor = random.choice(best_neighbors) if len(best_neighbors) > 1 else best_neighbors[0]
+                        chosen_neighbor = random.choice(best_neighbors) #if len(best_neighbors) > 1 else best_neighbors[0]
 
                     if asking_style == "distributed":
                         neighbors_rep = [(n.public_reputation + 2)**prob_power for n in neighbors]
@@ -244,7 +244,7 @@ class Player:
         self.real_reputation = 0.5  # Real reputation as a floating-point value
         self.public_reputation = 1  # Public reputation as a discrete value (-1 or 1)
         self.neighbors = []  # List of neighboring players
-        self.recent_utilities = []  # Utilities from the last x rounds
+        self.recent_utilities = []  # Utilities from all interactions in the last max_recent_rounds rounds
         self.interactions_per_round = []
         self.max_recent_rounds = 10  # Maximum number of recent rounds to track
         self.all_utilities = []
@@ -255,15 +255,11 @@ class Player:
         self.recent_utilities.append(utility_change)
         self.all_utilities.append(utility_change)
 
-        '''
-        # Keep only the last x rounds
-        if len(self.recent_utilities) > total_interaction:
-            self.recent_utilities.pop(0)'''
 
     def update_interactions_per_round(self):
         self.interactions_per_round.append(self.times_asked + 1)
         self.times_asked = 0
-        
+        # Keep only the last x rounds
         if len(self.interactions_per_round) > self.max_recent_rounds:
             self.recent_utilities = self.recent_utilities[self.interactions_per_round[0]:]
             self.interactions_per_round = self.interactions_per_round[1:]
@@ -277,7 +273,7 @@ class Player:
         if not (self.recent_utilities and self.interactions_per_round):
             return 0
         avg_utility = sum(self.recent_utilities)/len(self.interactions_per_round)
-        return avg_utility # multiply by 2 to get the average utility per round instead of per favor_change
+        return avg_utility 
     
     def decide_ask_for_help(self, asking_style, prob_power, favor_size):
         return self.strategy.ask_for_help(self, self.neighbors, asking_style, prob_power, favor_size)
@@ -946,4 +942,5 @@ class Analyze_hyper_paramter:
             # Save the updated image with EXIF metadata
             img.save(save_path, exif=img.info.get("exif"))
     
-    def sweep_asking_probability(self, probability_values, rounds=5000, plot_results=True, repetitions=3, save_path="plots/sweeps/neighbor.png")
+    def sweep_asking_probability(self, probability_values, rounds=5000, plot_results=True, repetitions=3, save_path="plots/sweeps/neighbor.png"):
+        return 
