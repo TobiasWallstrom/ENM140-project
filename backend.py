@@ -161,7 +161,6 @@ class StrategyGenerator:
             def __init__(self, decisions, strategy_generator):
                 self.decisions = decisions
                 self.strategy_generator = strategy_generator
-                self.bitcode = "".join(map(str, decisions.values()))
                 self.color = None  # This will be assigned in generate_all_strategies
                 raw_name = "".join(map(str, self.decisions.values()))
                 self.bitcode = raw_name
@@ -328,20 +327,21 @@ class GameGrid:
         return random.sample(self.players, len(self.players))
 
     def get_neighbors(self, player_id):
-        x, y = divmod(player_id, self.L)
+        """ Get player_id of all neighbors"""
+        row, col = divmod(player_id, self.L)
         neighbors = []
-        for i in range(-self.N, self.N + 1):
-            for j in range(-self.N, self.N + 1):
+        for rows in range(-self.N, self.N + 1):
+            for cols in range(-self.N, self.N + 1):
                 if not self.diagonal_neighbors:
-                    if abs(i) + abs(j) > self.N:
+                    if abs(rows) + abs(cols) > self.N:
                         continue
                 else:
-                    if max(abs(i), abs(j)) > self.N:
+                    if max(abs(rows), abs(cols)) > self.N:
                         continue
-                nx = (x + i) % self.L
-                ny = (y + j) % self.L
-                if (nx, ny) != (x, y):
-                    neighbors.append(nx * self.L + ny)
+                nrow = (row + rows) % self.L
+                ncol = (col + cols) % self.L
+                if (nrow, ncol) != (row, col):
+                    neighbors.append(nrow * self.L + ncol)
         return neighbors
 
     def change_L(self, new_L):

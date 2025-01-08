@@ -47,6 +47,54 @@ class ReputationManager:
             helping.real_reputation = max(self.min_reputation, helping.real_reputation - reputation_change)
         helping.public_reputation = 1 if helping.real_reputation >= 0 else -1
 
+
+def plot_grid_player_and_neighbors(grid, player_id):
+    """ plot the grid and fill the square of the player and its neighbors"""
+    fig, ax = plt.subplots()
+
+    # limits of the plot
+    grid_size = grid.L
+    ax.set_xlim(0, grid_size)
+    ax.set_ylim(0, grid_size)
+
+    # let y-axis start at left upper corner and increase downward
+    plt.gca().invert_yaxis()
+
+    # Create grid using a mesh
+    for x in range(grid_size):
+        ax.axhline(x, color='gray', linestyle='-', linewidth=0.5)
+        ax.axvline(x, color='gray', linestyle='-', linewidth=0.5)
+
+    # Color the player-cell
+    row, col = divmod(player_id, grid_size)
+    ax.add_patch(plt.Rectangle((col, row), 1, 1, color='lightblue'))
+
+    # Color the neighboring cells
+    player = grid.players[player_id]
+    neighbors = player.neighbors 
+
+    for nb in neighbors:
+        row, col = divmod(nb.id, grid_size)
+        # Create grid of dots inside the cell
+        dot_spacing = 0.1  
+        dot_radius = 0.03 
+        dot_positions_x = np.arange(col + dot_spacing / 2, col + 1, dot_spacing)
+        dot_positions_y = np.arange(row + dot_spacing / 2, row + 1, dot_spacing)
+        # Add dots as circles to the plot
+        for x in dot_positions_x:
+            for y in dot_positions_y:
+                circle = plt.Circle((x, y), dot_radius, color='lightgreen', lw=0)
+                ax.add_artist(circle)
+
+    # Remove ticks and labels
+    ax.set_xticks([])
+    ax.set_yticks([])
+    # Set aspect ratio to be equal to ensure square grid cells
+    ax.set_aspect('equal')
+
+    plt.show()
+
+
 if __name__ == "__main__":
     L = 10  # Grid size
     N = 1   # Neighborhood radius
@@ -73,6 +121,9 @@ if __name__ == "__main__":
     
     #grid.setup_from_bitcodes(own_grid)
     grid.setup_random()
+
+    plot_grid_player_and_neighbors(grid, player_id=23)
+    
     
     """powers = np.linspace(1.5,1.6,10)
     print(powers)
@@ -87,7 +138,7 @@ if __name__ == "__main__":
         evolution.run_interactive(record_data = True, plotting_frequenz=1000)
         evolution.plot_history(i)
         evolution.plot_average_utility(i)
-        evolution.plot_average_reputation(i)"""
+        evolution.plot_average_reputation(i)
     
     Sweeper = Analyze_hyper_paramter(
         GameGrid(15, N, strategy_generator_instance, diagonal_neighbors=True), 
@@ -101,4 +152,4 @@ if __name__ == "__main__":
 
     #Sweeper.sweep_rep_loss(np.arange(0.005, 0.105, 0.005 ), rounds=5000, repetitions=3, save_path="plots/sweeps/rep_loss_sweep4.png")
     Sweeper.sweep_neighbor_size(np.arange(1, 15, 1), rounds=5000, repetitions=5, save_path="plots/sweeps/neighbor_size_sweep2.png")
-    
+    """
