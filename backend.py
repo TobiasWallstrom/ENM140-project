@@ -822,7 +822,7 @@ class Analyze_hyper_paramter:
         self.random_mutation = random_mutation
         self.prob_power = prob_power
 
-    def sweep_rep_loss(self, rep_loss_values, rounds=5000, plot_results=True, repetitions=3, save_path="plots/sweeps/plot.png"):
+    def sweep_rep_loss(self, rep_loss_values, rounds=5000, plot_results=True, repetitions=3, favor_sizes = [1,3], save_path="plots/sweeps/plot.png"):
         """
         Sweep the reputation loss base values, analyze the results, and save the plot with EXIF metadata.
         """
@@ -832,7 +832,7 @@ class Analyze_hyper_paramter:
             moral_scores = []
             for _ in range(repetitions):
                 rep_manager = self.rep_class(loss_base=rep_loss)
-                game = Game(self.grid, self.utility_class(), rep_manager, self.asking_style, self.prob_power)
+                game = Game(self.grid, self.utility_class(), rep_manager, self.asking_style, self.prob_power, favor_sizes)
                 evolution = Evolution(game, self.inverse_copy_prob, self.inverse_mutation_prob, self.inverse_pardon_prob, self.random_mutation)
                 evolution.run_evolution(rounds, True, False)
                 analyzer = GameAnalyzer(game)
@@ -885,7 +885,7 @@ class Analyze_hyper_paramter:
 
         return results
 
-    def sweep_neighbor_size(self, neighbor_values, rounds=5000, plot_results=True, repetitions=3, save_path="plots/sweeps/neighbor.png"):
+    def sweep_neighbor_size(self, neighbor_values, rounds=5000, plot_results=True, repetitions=3, favor_sizes = [1,3], save_path="plots/sweeps/neighbor.png"):
         """sweeps the neighbor size and plots the results"""
         results = {}
         for neighbor_size in neighbor_values:
@@ -895,7 +895,7 @@ class Analyze_hyper_paramter:
                 print(f"Repetition {n+1} of {repetitions}")
                 grid = GameGrid(self.grid.L, neighbor_size, self.grid.strategy_generator_instance, self.grid.diagonal_neighbors)
                 rep_manager = self.rep_class()
-                game = Game(grid, self.utility_class(), rep_manager, self.asking_style, self.prob_power)
+                game = Game(grid, self.utility_class(), rep_manager, self.asking_style, self.prob_power, favor_sizes)
                 evolution = Evolution(game, self.inverse_copy_prob, self.inverse_mutation_prob, self.inverse_pardon_prob, self.random_mutation)
                 evolution.run_evolution(rounds, True, False)
                 analyzer = GameAnalyzer(game)
@@ -946,3 +946,4 @@ class Analyze_hyper_paramter:
             # Save the updated image with EXIF metadata
             img.save(save_path, exif=img.info.get("exif"))
     
+    def sweep_asking_probability(self, probability_values, rounds=5000, plot_results=True, repetitions=3, save_path="plots/sweeps/neighbor.png")
