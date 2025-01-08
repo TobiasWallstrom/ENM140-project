@@ -1,6 +1,7 @@
 import numpy as np
 import random
 import itertools
+import bisect
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
@@ -156,7 +157,6 @@ class StrategyGenerator:
 
     def _create_strategy(self, decisions):
         """Create a dynamic strategy based on decisions."""
-        super_favor_sizes = self.favor_sizes
         class DynamicStrategy:
             def __init__(self, decisions, strategy_generator):
                 self.decisions = decisions
@@ -201,8 +201,7 @@ class StrategyGenerator:
 
                 raise ValueError("No matching strategy found after flipping all bits.")
 
-            def ask_for_help(self, player, neighbors, asking_style="random", prob_power = 1):
-                favor_size = random.choices(super_favor_sizes, weights=[0.5, 0.5])[0]
+            def ask_for_help(self, player, neighbors, asking_style="random", prob_power = 1, favor_size = 1):
                 if ("ask", favor_size) in self.decisions and self.decisions[("ask", favor_size)] == 1 and neighbors:
                     if asking_style == "random":
                         chosen_neighbor = random.choice(neighbors)
@@ -217,7 +216,10 @@ class StrategyGenerator:
                         neighbors_rep = [(n.public_reputation + 2)**prob_power for n in neighbors]
                         total_rep = sum(neighbors_rep)
                         weights = [x/total_rep for x in neighbors_rep]
-                        chosen_neighbor = np.random.choice(neighbors, 1, p=weights)[0]
+                        cumulative_weights = np.cumsum(weights)
+                        r = random.random()
+                        index = bisect.bisect_left(cumulative_weights, r)
+                        chosen_neighbor = neighbors[index]
 
                     
                     return {"favor_size": favor_size, "target": chosen_neighbor.id, "action": "ask"}
@@ -277,8 +279,8 @@ class Player:
         avg_utility = sum(self.recent_utilities)/len(self.interactions_per_round)
         return avg_utility # multiply by 2 to get the average utility per round instead of per favor_change
     
-    def decide_ask_for_help(self, asking_style, prob_power):
-        return self.strategy.ask_for_help(self, self.neighbors, asking_style, prob_power)
+    def decide_ask_for_help(self, asking_style, prob_power, favor_size):
+        return self.strategy.ask_for_help(self, self.neighbors, asking_style, prob_power, favor_size)
 
     def decide_respond_to_help(self, requester_id, favor_size):
         return self.strategy.respond_to_help(self, requester_id, favor_size)
@@ -368,33 +370,41 @@ class GameGrid:
         self._precompute_neighbors()    
 
 class Game:
-    def __init__(self, grid, utility_function, reputation_manager, asking_style, prob_power):
+    def __init__(self, grid, utility_function, reputation_manager, asking_style, prob_power, favor_sizes):
         self.grid = grid
         self.utility_function = utility_function
         self.reputation_manager = reputation_manager
         self.asking_style = asking_style
         self.prob_power = prob_power
+        self.favor_sizes = favor_sizes
 
     def one_round(self):
         players_in_order = self.grid.shuffle_players()
-        for player in players_in_order:
-            ask_decision = player.decide_ask_for_help(self.asking_style, self.prob_power)
+        random_values = np.random.rand(len(players_in_order))
+        # Assign favor sizes based on thresholds
+        favor_sizes = np.where(random_values < 0.5, self.favor_sizes[0], self.favor_sizes[1])
+
+        ## pre compute neighbor map
+        neighbor_map = {player.id: {neighbor.id: neighbor for neighbor in player.neighbors} for player in players_in_order}
+
+        for i, player in enumerate(players_in_order):
+            ask_decision = player.decide_ask_for_help(self.asking_style, self.prob_power, favor_sizes[i])
             if ask_decision["action"] == "ask":
-                target = next(p for p in player.neighbors if p.id == ask_decision["target"])
-                favor_size = ask_decision["favor_size"]
-                response = target.decide_respond_to_help(player.id, favor_size)
-                if response:
-                    utility_requester, utility_responder = self.utility_function.calculate("cooperate", favor_size)
+                target_id = ask_decision["target"]
+                target = neighbor_map[player.id].get(target_id)
+
+                if target:
+                    favor_size = ask_decision["favor_size"]
+                    if target.decide_respond_to_help(player.id, favor_size):
+                        utility_requester, utility_responder = self.utility_function.calculate("cooperate", favor_size)
+                        self.reputation_manager.update_reputation(player, target, "accept", favor_size)
+                    else:
+                        utility_requester, utility_responder = self.utility_function.calculate("reject", favor_size)
+                        self.reputation_manager.update_reputation(player, target, "reject", favor_size)
+                    
                     player.update_utility(utility_requester)
                     target.update_utility(utility_responder)
-                    self.reputation_manager.update_reputation(player, target, "accept", favor_size)
-                else:
-                    utility_requester, utility_responder = self.utility_function.calculate("reject", favor_size)
-                    player.update_utility(utility_requester)
-                    target.update_utility(utility_responder)
-                    #self.reputation_manager.update_reputation(player, "reject", favor_size)
-                    self.reputation_manager.update_reputation(player, target, "reject", favor_size)
-                target.times_asked += 1
+                    target.times_asked += 1
             else:
                 player.update_utility(0)
         for player in players_in_order:
