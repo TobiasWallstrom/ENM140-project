@@ -425,8 +425,9 @@ class Evolution:
         """
         Initialize the Evolution class.
         :param game: The Game instance.
-        :param inverse_copy_prob: The inverse probability for a mutation to occur.
-        :param inverse_mutation_prob: The inverse probability for a mutation.
+        :param inverse_copy_prob: The inverse probability of copying the best performing neighbor's strategy.
+        :param inverse_mutation_prob: The inverse probability for a mutation to occur.
+        :param inverse_pardon_prob: The inverse probability of being pardonned
         :param random_mutation: Boolean to allow random bit flipping during mutation.
         """
         self.game = game
@@ -711,10 +712,11 @@ class Evolution:
         plt.tight_layout()
 
         # Show or save the plot
-        plt.savefig(str(power)+".png")
+        plt.savefig("strategy_dist_evolution_power_" + str(power) + ".png")
+        print("Plot saved as 'strategy_dist_evolution_power_*.png'")
         plt.close()
 
-    def plot_average_utility(self, iteration):
+    def plot_average_utility(self, power):
         """
         Plot the average utility of all players over time.
         """
@@ -743,11 +745,11 @@ class Evolution:
         plt.tight_layout()
 
         # Save or show the plot
-        plt.savefig(str(iteration) + "utility.png")
-        print("Plot saved as 'average_utility_over_time.png'.")
+        plt.savefig("avg_utility_over_time_power_"+str(power) + ".png")
+        print("Plot saved as 'avg_utility_over_time_power_*.png'.")
         plt.close()
     
-    def plot_average_reputation(self, iteration):
+    def plot_average_reputation(self, power):
         """
         Plot the average reputation of all players over time.
         """
@@ -776,8 +778,8 @@ class Evolution:
         plt.tight_layout()
 
         # Save or show the plot
-        plt.savefig(str(iteration)+"reputation.png")
-        print("Plot saved as 'average_reputation_over_time.png'.")
+        plt.savefig("avg_rep_over_time_power_"+str(power)+".png")
+        print("Plot saved as 'avg_rep_over_time_power_*.png'.")
         plt.close()
 
     def _record_history(self, iteration):
@@ -839,7 +841,7 @@ class Analyze_hyper_paramter:
             results[rep_loss] = (np.mean(moral_scores), np.std(moral_scores))
 
         if plot_results:
-            rep_losses = list(results.keys())
+            rep_losses = list(results.keys())   # isn't this just the same as rep_loss_values?
             moral_scores = [score[0] for score in results.values()]
             moral_score_stds = [score[1] for score in results.values()]
 
@@ -890,8 +892,7 @@ class Analyze_hyper_paramter:
             for n in range(repetitions):
                 print(f"Repetition {n+1} of {repetitions}")
                 grid = GameGrid(self.grid.L, neighbor_size, self.grid.strategy_generator_instance, self.grid.diagonal_neighbors)
-                rep_manager = self.rep_class()
-                game = Game(grid, self.utility_class(), rep_manager, self.asking_style, self.prob_power, favor_sizes)
+                game = Game(grid, self.utility_class(), self.rep_class(), self.asking_style, self.prob_power, favor_sizes)
                 evolution = Evolution(game, self.inverse_copy_prob, self.inverse_mutation_prob, self.inverse_pardon_prob, self.random_mutation)
                 evolution.run_evolution(rounds, True, False)
                 analyzer = GameAnalyzer(game)

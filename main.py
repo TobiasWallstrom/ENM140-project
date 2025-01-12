@@ -127,7 +127,7 @@ if __name__ == "__main__":
     
     powers = [0.5]
     print(powers)
-    for i, power in enumerate(powers):
+    for power in powers:
         random.seed(10)
         grid.setup_random()
         print(power)
@@ -135,9 +135,9 @@ if __name__ == "__main__":
 
         evolution = Evolution(game, inverse_copy_prob=60, inverse_mutation_prob=1000, inverse_pardon_prob=200, random_mutation=True)
         evolution.run_evolution(rounds = 1000)
-        evolution.plot_history(i)
-        evolution.plot_average_utility(i)
-        evolution.plot_average_reputation(i)
+        evolution.plot_history(power)
+        evolution.plot_average_utility(power)
+        evolution.plot_average_reputation(power)
     '''
     Sweeper = Analyze_hyper_paramter(
         GameGrid(15, N, strategy_generator_instance, diagonal_neighbors=True), 
