@@ -17,7 +17,7 @@ class SimpleUtility(UtilityFunction):
     def calculate(self, action, favor_size):
         """
         Simple utility calculation:
-        - Cooperation: Requester gains +favor_size, responder loses -favor_size.
+        - Cooperation: Requester gains +favor_size, responder loses -favor_size/2.
         - Rejection: No utility change.
         """
         if action == "cooperate":
@@ -38,6 +38,7 @@ class ReputationManager:
     def update_reputation(self, asking, helping, action, favor_size):
         '''if helping.get_average_utility_per_round() < 0: # Edited for promoting lonewolves. Comment out for old program
             reputation_change_asking = self.loss_base * favor_size * (1 + asking.real_reputation/self.reputation_scaler)/3
+            asking.real_reputation = max(self.min_reputation, asking.real_reputation - reputation_change_asking)
             asking.real_reputation = max(self.min_reputation, asking.real_reputation - reputation_change_asking)
         '''
         if action == "accept":
@@ -128,17 +129,17 @@ if __name__ == "__main__":
     '''
     powers = [0.5, 1, 1.3, 1.7, 2, 2.3]
     print(powers)
-    for i, power in enumerate(powers):
+    for power in powers:
         random.seed(10)
         grid.setup_random()
         print(power)
         game = Game(grid, SimpleUtility(), ReputationManager(gain_base=0.1, loss_base=0.1), asking_style = "distributed", prob_power=power, favor_sizes = [1,3]) ## Choose and asking_style between "random", "best" and "distributed"
 
         evolution = Evolution(game, inverse_copy_prob=60, inverse_mutation_prob=1000, inverse_pardon_prob=200, random_mutation=True)
-        evolution.run_evolution(rounds = 50000)
-        evolution.plot_history(i)
-        evolution.plot_average_utility(i)
-        evolution.plot_average_reputation(i)
+        evolution.run_evolution(rounds = 1000)
+        evolution.plot_history(power)
+        evolution.plot_average_utility(power)
+        evolution.plot_average_reputation(power)
     '''
     Sweeper = Analyze_hyper_paramter(
     GameGrid(10, 1, strategy_generator_instance, diagonal_neighbors=True), 
