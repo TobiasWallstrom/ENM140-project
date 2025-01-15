@@ -65,7 +65,7 @@ class GameAnalyzer:
 
         print("=" * 30)
 
-    def get_avrage_moral_score(self):
+    def get_average_moral_score(self):
         # calculate the moral score with std of the total game weighted by the number of players with the strategy
         moral_scores = []
         for player in self.game.grid.players:
@@ -546,7 +546,7 @@ class Evolution:
                 iteration_text.set_text(f"Iteration: {self.iteration}")
 
             if self.iteration == 1 or self.iteration % plotting_frequenz == 0:   
-                plt.pause(0.01)  # Allow GUI updates'
+                plt.pause(0.1)  # Allow GUI updates'
         
         plt.close(fig)
 
@@ -679,7 +679,7 @@ class Evolution:
         for entry in self.history:
             for strat in entry["strategies"]:
                 if strat["bitcode"] not in strategy_data:
-                    strategy_data[strat["bitcode"]] = {"percentages": [], "utilities": [], "reputations": []}
+                    strategy_data[strat["bitcode"]] = {"percentages": [], "utilities": [], "reputations": [], "color": strat["normalized_color"]}
 
         # Populate the data for each strategy
         for entry in self.history:
@@ -700,7 +700,7 @@ class Evolution:
         # Plot strategy percentages
         plt.figure(figsize=(12, 6))
         for bitcode, data in sorted_strategies:
-            plt.plot(iterations, data["percentages"], label=f"Strategy {bitcode}")
+            plt.plot(iterations, data["percentages"], label=f"Strategy {bitcode}", color= data["color"])
         plt.title("Strategy Distribution Over Time")
         plt.xlabel("Iteration")
         plt.ylabel("Percentage of Players")
@@ -803,7 +803,8 @@ class Evolution:
                 "bitcode": bitcode,
                 "percentage": percentage,
                 "mean_utility": mean_utility,
-                "mean_reputation": mean_reputation
+                "mean_reputation": mean_reputation,
+                "normalized_color": tuple(x/255 for x in  self._hex_to_rgb(players[0].strategy.color))
             })
 
         self.history.append(history_entry)
@@ -828,13 +829,14 @@ class Analyze_hyper_paramter:
         for rep_loss in rep_loss_values:
             print(f"Round {np.where(rep_loss_values == rep_loss)[0][0]+1} of {len(rep_loss_values)}")
             moral_scores = []
-            for _ in range(repetitions):
+            for rep in range(repetitions):
+                print(f"Repetition {rep+1} of {repetitions}")
                 rep_manager = self.rep_class(loss_base=rep_loss)
                 game = Game(self.grid, self.utility_class(), rep_manager, self.asking_style, self.prob_power, favor_sizes)
                 evolution = Evolution(game, self.inverse_copy_prob, self.inverse_mutation_prob, self.inverse_pardon_prob, self.random_mutation)
                 evolution.run_evolution(rounds, True, False)
                 analyzer = GameAnalyzer(game)
-                avg_score, std_score = analyzer.get_avrage_moral_score()
+                avg_score, std_score = analyzer.get_average_moral_score()
                 moral_scores.append(avg_score)
 
             # Calculate mean and std across repetitions
@@ -896,7 +898,7 @@ class Analyze_hyper_paramter:
                 evolution = Evolution(game, self.inverse_copy_prob, self.inverse_mutation_prob, self.inverse_pardon_prob, self.random_mutation)
                 evolution.run_evolution(rounds, True, False)
                 analyzer = GameAnalyzer(game)
-                avg_score, std_score = analyzer.get_avrage_moral_score()
+                avg_score, std_score = analyzer.get_average_moral_score()
                 moral_scores.append(avg_score)
 
             # Calculate mean and std across repetitions
