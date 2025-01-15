@@ -36,9 +36,11 @@ class ReputationManager:
         self.reputation_scaler = 1.5
 
     def update_reputation(self, asking, helping, action, favor_size):
-        #if helping.get_average_utility_per_round() < 0: # Edited for promoting lonewolves. Comment out for old program
-        #    reputation_change_asking = self.loss_base * favor_size * (1 + asking.real_reputation/self.reputation_scaler)/3
-        #    asking.real_reputation = max(self.min_reputation, asking.real_reputation - reputation_change_asking)
+        '''if helping.get_average_utility_per_round() < 0: # Edited for promoting lonewolves. Comment out for old program
+            reputation_change_asking = self.loss_base * favor_size * (1 + asking.real_reputation/self.reputation_scaler)/3
+            asking.real_reputation = max(self.min_reputation, asking.real_reputation - reputation_change_asking)
+            asking.real_reputation = max(self.min_reputation, asking.real_reputation - reputation_change_asking)
+        '''
         if action == "accept":
             reputation_change = self.gain_base * favor_size
             helping.real_reputation = min(self.max_reputation, helping.real_reputation + reputation_change)
@@ -124,8 +126,8 @@ if __name__ == "__main__":
 
     #plot_grid_player_and_neighbors(grid, player_id=23)
     
-    
-    powers = [0.5]
+    '''
+    powers = [0.5, 1, 1.3, 1.7, 2, 2.3]
     print(powers)
     for power in powers:
         random.seed(10)
@@ -141,17 +143,17 @@ if __name__ == "__main__":
         evolution.plot_average_reputation(power)
     '''
     Sweeper = Analyze_hyper_paramter(
-        GameGrid(15, N, strategy_generator_instance, diagonal_neighbors=True), 
-        utility_class=SimpleUtility,
-        rep_class=ReputationManager,
-        asking_style="distributed",
-        inverse_copy_prob=60,
-        inverse_mutation_prob=1000,
-        inverse_pardon_prob=200,
-        prob_power = 1.3,
-        random_mutation=True)'''
+    GameGrid(10, 1, strategy_generator_instance, diagonal_neighbors=True), 
+    utility_class=SimpleUtility,
+    rep_class=ReputationManager,
+    asking_style="distributed",
+    inverse_copy_prob=60,
+    inverse_mutation_prob=1000,
+    inverse_pardon_prob=200,
+    prob_power = 1.3,
+    random_mutation=True)
 
-    #Sweeper.sweep_rep_loss(np.arange(0.005, 0.205, 0.005 ), rounds=1000, repetitions=15, save_path="plots/sweeps/rep_loss_sweep_r1000_rep15.png")
+    #Sweeper.sweep_rep_loss(np.arange(0.005, 0.105, 0.005 ), rounds=5000, repetitions=3, save_path="plots/sweeps/rep_loss_sweep4.png")
+    Sweeper.sweep_asking_probability(np.linspace(0.5,3.5,20), rounds=5000, repetitions=5, save_path="plots/sweeps/asking_prob_sweep.png")
     #Sweeper.sweep_neighbor_size(np.arange(1, 15, 1), rounds=5000, repetitions=8, save_path="plots/sweeps/neighbor_size_sweep4.png")
     
- 

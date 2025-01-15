@@ -67,10 +67,17 @@ class GameAnalyzer:
 
     def get_average_moral_score(self):
         # calculate the moral score with std of the total game weighted by the number of players with the strategy
-        moral_scores = []
-        for player in self.game.grid.players:
-            moral_scores.append(player.strategy.moral_score)
+        moral_scores = [player.strategy.moral_score for player in self.game.grid.players]
         return np.mean(moral_scores), np.std(moral_scores)
+    
+    def get_average_utility(self, rounds):
+        utilities = [player.get_average_utility_per_round() for player in self.game.grid.players]
+        return np.mean(utilities)
+            
+
+    def get_average_reputation(self):
+        reputations = [player.get_reputation() for player in self.game.grid.players]
+        return np.mean(reputations)
 
 class StrategyGenerator:
     def __init__(self, favor_sizes, reputation_values, filter_strategies=True):
@@ -275,6 +282,12 @@ class Player:
         avg_utility = sum(self.recent_utilities)/len(self.interactions_per_round)
         return avg_utility 
     
+    def get_total_utility(self):
+        return self.total_utility
+    
+    def get_reputation(self):
+        return self.real_reputation
+
     def decide_ask_for_help(self, asking_style, prob_power, favor_size):
         return self.strategy.ask_for_help(self, self.neighbors, asking_style, prob_power, favor_size)
 
@@ -798,12 +811,14 @@ class Evolution:
         for bitcode, players in strategy_counts.items():
             percentage = len(players) / len(self.game.grid.players) * 100
             mean_utility = np.mean([p.get_average_utility_per_round() for p in players])
+            total_utility = np.mean([p.get_total_utility() for p in players])
             mean_reputation = np.mean([p.real_reputation for p in players])
             history_entry["strategies"].append({
                 "bitcode": bitcode,
                 "percentage": percentage,
                 "mean_utility": mean_utility,
                 "mean_reputation": mean_reputation,
+                "total_utility": total_utility, 
                 "normalized_color": tuple(x/255 for x in  self._hex_to_rgb(players[0].strategy.color))
             })
 
@@ -825,10 +840,14 @@ class Analyze_hyper_paramter:
         """
         Sweep the reputation loss base values, analyze the results, and save the plot with EXIF metadata.
         """
-        results = {}
+        results_moral = {}
+        results_utility = {}
+        results_reputation = {}
         for rep_loss in rep_loss_values:
             print(f"Round {np.where(rep_loss_values == rep_loss)[0][0]+1} of {len(rep_loss_values)}")
             moral_scores = []
+            utilities = []
+            reputations = []
             for rep in range(repetitions):
                 print(f"Repetition {rep+1} of {repetitions}")
                 rep_manager = self.rep_class(loss_base=rep_loss)
@@ -836,30 +855,55 @@ class Analyze_hyper_paramter:
                 evolution = Evolution(game, self.inverse_copy_prob, self.inverse_mutation_prob, self.inverse_pardon_prob, self.random_mutation)
                 evolution.run_evolution(rounds, True, False)
                 analyzer = GameAnalyzer(game)
-                avg_score, std_score = analyzer.get_average_moral_score()
+                avg_score, std_score = analyzer.get_avrage_moral_score()
+                avg_utility = analyzer.get_average_utility(rounds)  # Ensure this is a single value per repetition
+                utilities.append(avg_utility)  # Store the average utility for the repetition
+                reputations.append(analyzer.get_average_reputation())
                 moral_scores.append(avg_score)
-
             # Calculate mean and std across repetitions
-            results[rep_loss] = (np.mean(moral_scores), np.std(moral_scores))
+            results_moral[rep_loss] = (np.mean(moral_scores), np.std(moral_scores))
+            results_utility[rep_loss] = (np.mean(utilities), np.std(utilities))
+            results_reputation[rep_loss] = (np.mean(reputations), np.std(reputations))
 
         if plot_results:
-            rep_losses = list(results.keys())   # isn't this just the same as rep_loss_values?
-            moral_scores = [score[0] for score in results.values()]
-            moral_score_stds = [score[1] for score in results.values()]
+            rep_losses = list(results_moral.keys())
+            moral_scores = [score[0] for score in results_moral.values()]
+            moral_score_stds = [score[1] for score in results_moral.values()]
 
             # Create the plot
-            plt.figure(figsize=(10, 6))
+            plt.figure(figsize=(15, 8))
+            plt.subplot(1, 3, 1)
             plt.errorbar(rep_losses, moral_scores, yerr=moral_score_stds, fmt='-o', capsize=5, label='Average Moral Score')
             plt.fill_between(rep_losses, np.array(moral_scores) - np.array(moral_score_stds), np.array(moral_scores) + np.array(moral_score_stds), alpha=0.2)
             plt.xlabel('Reputation Loss Base Value')
             plt.ylabel('Average Moral Score')
-            plt.title('Average Moral Score vs. Reputation Loss Base Value')
-            plt.legend()
             plt.grid(True)
             plt.tight_layout()
+
+
+            # Create the plot for utilities (average across repetitions)
+            neighbor_sizes = rep_losses
+            utility_scores = [score[0] for score in results_utility.values()]
+            utility_score_stds = [score[1] for score in results_utility.values()]
+            plt.subplot(1, 3, 2)
+            plt.errorbar(neighbor_sizes, utility_scores, yerr=utility_score_stds, fmt='-o', capsize=5, label='Average Moral Score')
+            plt.fill_between(neighbor_sizes, np.array(utility_scores) - np.array(utility_score_stds), np.array(utility_scores) + np.array(utility_score_stds), alpha=0.2)
+            plt.xlabel('Reputation Loss Base Value')
+            plt.ylabel('Average Utility')
+            plt.grid(True)
+
+            # Create the plot for reputations (average across repetitions)
+            reputation_scores = [score[0] for score in results_reputation.values()]
+            reputation_score_stds = [score[1] for score in results_reputation.values()]
+            plt.subplot(1, 3, 3)
+            plt.errorbar(neighbor_sizes, reputation_scores, yerr=reputation_score_stds, fmt='-o', capsize=5, label='Average Moral Score')
+            plt.fill_between(neighbor_sizes, np.array(reputation_scores) - np.array(reputation_score_stds), np.array(reputation_scores) + np.array(reputation_score_stds), alpha=0.2)
+            plt.xlabel('Reputation Loss Base Value')
+            plt.ylabel('Average Reputation')
+            plt.grid(True)
+
             plt.savefig(save_path)
             plt.show()
-
             # Save EXIF metadata
             metadata = {
                 "Grid Size": self.grid.L,
@@ -883,7 +927,7 @@ class Analyze_hyper_paramter:
             # Save the updated image with EXIF metadata
             img.save(save_path, exif=img.info.get("exif"))
 
-        return results
+        return results_moral
 
     def sweep_neighbor_size(self, neighbor_values, rounds=5000, plot_results=True, repetitions=3, favor_sizes = [1,3], save_path="plots/sweeps/neighbor.png"):
         """sweeps the neighbor size and plots the results"""
@@ -944,6 +988,98 @@ class Analyze_hyper_paramter:
             
             # Save the updated image with EXIF metadata
             img.save(save_path, exif=img.info.get("exif"))
-    
-    def sweep_asking_probability(self, probability_values, rounds=5000, plot_results=True, repetitions=3, save_path="plots/sweeps/neighbor.png"):
-        return 
+
+
+    def sweep_asking_probability(self, probabilities, rounds=5000, plot_results=True, repetitions=3, favor_sizes = [1,3], save_path="plots/sweeps/asking_probability.png"):
+        """sweeps the neighbor size and plots the results"""
+        results_moral = {}
+        results_utility = {}
+        results_reputation = {}
+        for probability in probabilities:
+            self.grid.setup_random()
+            print(f"Round {np.where(probabilities == probability)[0][0]+1} of {len(probabilities)}")
+            moral_scores = []
+            utilities = []
+            reputations = []
+            for n in range(repetitions):
+                print(f"Repetition {n+1} of {repetitions}")
+                rep_manager = self.rep_class()
+                game = Game(self.grid, self.utility_class(), rep_manager, self.asking_style, probability, favor_sizes)
+                evolution = Evolution(game, self.inverse_copy_prob, self.inverse_mutation_prob, self.inverse_pardon_prob, self.random_mutation)
+                evolution.run_evolution(rounds, True, False)
+                analyzer = GameAnalyzer(game)
+                avg_score, std_score = analyzer.get_avrage_moral_score()
+                avg_utility = analyzer.get_average_utility(rounds)  # Ensure this is a single value per repetition
+                utilities.append(avg_utility)  # Store the average utility for the repetition
+                reputations.append(analyzer.get_average_reputation())
+                moral_scores.append(avg_score)
+
+
+            # Calculate mean and std across repetitions
+            results_moral[probability] = (np.mean(moral_scores), np.std(moral_scores))
+            results_utility[probability] = (np.mean(utilities), np.std(utilities))
+            results_reputation[probability] = (np.mean(reputations), np.std(reputations))
+            
+
+        if plot_results:
+            probabilities = list(results_moral.keys())
+            neighbor_sizes = [3**x for x in probabilities]
+
+            moral_scores = [score[0] for score in results_moral.values()]
+            moral_score_stds = [score[1] for score in results_moral.values()]
+
+            # Create the plot for moral scores
+            plt.figure(figsize=(15, 8))
+            plt.subplot(1, 3, 1)
+            plt.errorbar(neighbor_sizes, moral_scores, yerr=moral_score_stds, fmt='-o', capsize=5, label='Average Moral Score')
+            plt.fill_between(neighbor_sizes, np.array(moral_scores) - np.array(moral_score_stds), np.array(moral_scores) + np.array(moral_score_stds), alpha=0.2)
+            plt.xlabel('Times More likely to ask high reputation')
+            plt.ylabel('Average Moral Score')
+            plt.grid(True)
+
+            # Create the plot for utilities (average across repetitions)
+            utility_scores = [score[0] for score in results_utility.values()]
+            utility_score_stds = [score[1] for score in results_utility.values()]
+            plt.subplot(1, 3, 2)
+            plt.errorbar(neighbor_sizes, utility_scores, yerr=utility_score_stds, fmt='-o', capsize=5, label='Average Moral Score')
+            plt.fill_between(neighbor_sizes, np.array(utility_scores) - np.array(utility_score_stds), np.array(utility_scores) + np.array(utility_score_stds), alpha=0.2)
+            plt.xlabel('Times More likely to ask high reputation')
+            plt.ylabel('Average Utility')
+            plt.grid(True)
+
+            # Create the plot for reputations (average across repetitions)
+            reputation_scores = [score[0] for score in results_reputation.values()]
+            reputation_score_stds = [score[1] for score in results_reputation.values()]
+            plt.subplot(1, 3, 3)
+            plt.errorbar(neighbor_sizes, reputation_scores, yerr=reputation_score_stds, fmt='-o', capsize=5, label='Average Moral Score')
+            plt.fill_between(neighbor_sizes, np.array(reputation_scores) - np.array(reputation_score_stds), np.array(reputation_scores) + np.array(reputation_score_stds), alpha=0.2)
+            plt.xlabel('Times More likely to ask high reputation')
+            plt.ylabel('Average Reputation')
+            plt.grid(True)
+
+            # Adjust layout
+            plt.tight_layout()
+            plt.savefig(save_path)
+            plt.show()
+
+            # Save EXIF metadata
+            metadata = {
+                "Grid Size": self.grid.L,
+                "Inverse Copy Probability": self.inverse_copy_prob,
+                "Inverse Mutation Probability": self.inverse_mutation_prob,
+                "Inverse Pardon Probability": self.inverse_pardon_prob,
+                "Repetitions": repetitions,
+                "Rounds Per Simulation": rounds,
+            }
+
+            # Open the plot and add EXIF metadata
+            img = Image.open(save_path)
+            exif_data = {
+                TAGS.get(tag, tag): val
+                for tag, val in img.info.get("exif", {}).items()
+            }
+            for key, value in metadata.items():
+                exif_data[key] = value
+            
+            # Save the updated image with EXIF metadata
+            img.save(save_path, exif=img.info.get("exif"))
