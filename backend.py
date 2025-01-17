@@ -855,7 +855,7 @@ class Analyze_hyper_paramter:
                 evolution = Evolution(game, self.inverse_copy_prob, self.inverse_mutation_prob, self.inverse_pardon_prob, self.random_mutation)
                 evolution.run_evolution(rounds, True, False)
                 analyzer = GameAnalyzer(game)
-                avg_score, std_score = analyzer.get_avrage_moral_score()
+                avg_score, std_score = analyzer.get_average_moral_score()
                 avg_utility = analyzer.get_average_utility(rounds)  # Ensure this is a single value per repetition
                 utilities.append(avg_utility)  # Store the average utility for the repetition
                 reputations.append(analyzer.get_average_reputation())
@@ -871,36 +871,35 @@ class Analyze_hyper_paramter:
             moral_score_stds = [score[1] for score in results_moral.values()]
 
             # Create the plot
-            plt.figure(figsize=(15, 8))
-            plt.subplot(1, 3, 1)
+            plt.figure(figsize=(12, 8))
+            plt.subplot(3, 1, 1)
             plt.errorbar(rep_losses, moral_scores, yerr=moral_score_stds, fmt='-o', capsize=5, label='Average Moral Score')
             plt.fill_between(rep_losses, np.array(moral_scores) - np.array(moral_score_stds), np.array(moral_scores) + np.array(moral_score_stds), alpha=0.2)
-            plt.xlabel('Reputation Loss Base Value')
+            #plt.xlabel('Reputation Loss Base Value')
             plt.ylabel('Average Moral Score')
             plt.grid(True)
-            plt.tight_layout()
-
 
             # Create the plot for utilities (average across repetitions)
             neighbor_sizes = rep_losses
             utility_scores = [score[0] for score in results_utility.values()]
             utility_score_stds = [score[1] for score in results_utility.values()]
-            plt.subplot(1, 3, 2)
+            plt.subplot(3, 1, 2)
             plt.errorbar(neighbor_sizes, utility_scores, yerr=utility_score_stds, fmt='-o', capsize=5, label='Average Moral Score')
             plt.fill_between(neighbor_sizes, np.array(utility_scores) - np.array(utility_score_stds), np.array(utility_scores) + np.array(utility_score_stds), alpha=0.2)
-            plt.xlabel('Reputation Loss Base Value')
+            #plt.xlabel('Reputation Loss Base Value')
             plt.ylabel('Average Utility')
             plt.grid(True)
 
             # Create the plot for reputations (average across repetitions)
             reputation_scores = [score[0] for score in results_reputation.values()]
             reputation_score_stds = [score[1] for score in results_reputation.values()]
-            plt.subplot(1, 3, 3)
+            plt.subplot(3, 1, 3)
             plt.errorbar(neighbor_sizes, reputation_scores, yerr=reputation_score_stds, fmt='-o', capsize=5, label='Average Moral Score')
             plt.fill_between(neighbor_sizes, np.array(reputation_scores) - np.array(reputation_score_stds), np.array(reputation_scores) + np.array(reputation_score_stds), alpha=0.2)
             plt.xlabel('Reputation Loss Base Value')
             plt.ylabel('Average Reputation')
             plt.grid(True)
+            plt.tight_layout()
 
             plt.savefig(save_path)
             plt.show()
@@ -995,6 +994,7 @@ class Analyze_hyper_paramter:
         results_moral = {}
         results_utility = {}
         results_reputation = {}
+        #probabilities = np.log(probabilities)/np.log(3)    # to get linear sweep instead of exponential
         for probability in probabilities:
             self.grid.setup_random()
             print(f"Round {np.where(probabilities == probability)[0][0]+1} of {len(probabilities)}")
@@ -1008,7 +1008,7 @@ class Analyze_hyper_paramter:
                 evolution = Evolution(game, self.inverse_copy_prob, self.inverse_mutation_prob, self.inverse_pardon_prob, self.random_mutation)
                 evolution.run_evolution(rounds, True, False)
                 analyzer = GameAnalyzer(game)
-                avg_score, std_score = analyzer.get_avrage_moral_score()
+                avg_score, std_score = analyzer.get_average_moral_score()
                 avg_utility = analyzer.get_average_utility(rounds)  # Ensure this is a single value per repetition
                 utilities.append(avg_utility)  # Store the average utility for the repetition
                 reputations.append(analyzer.get_average_reputation())
@@ -1029,28 +1029,28 @@ class Analyze_hyper_paramter:
             moral_score_stds = [score[1] for score in results_moral.values()]
 
             # Create the plot for moral scores
-            plt.figure(figsize=(15, 8))
-            plt.subplot(1, 3, 1)
+            plt.figure(figsize=(12, 8))
+            plt.subplot(3, 1, 1)
             plt.errorbar(neighbor_sizes, moral_scores, yerr=moral_score_stds, fmt='-o', capsize=5, label='Average Moral Score')
             plt.fill_between(neighbor_sizes, np.array(moral_scores) - np.array(moral_score_stds), np.array(moral_scores) + np.array(moral_score_stds), alpha=0.2)
-            plt.xlabel('Times More likely to ask high reputation')
+            #plt.xlabel('Times More likely to ask high reputation')
             plt.ylabel('Average Moral Score')
             plt.grid(True)
 
             # Create the plot for utilities (average across repetitions)
             utility_scores = [score[0] for score in results_utility.values()]
             utility_score_stds = [score[1] for score in results_utility.values()]
-            plt.subplot(1, 3, 2)
+            plt.subplot(3, 1, 2)
             plt.errorbar(neighbor_sizes, utility_scores, yerr=utility_score_stds, fmt='-o', capsize=5, label='Average Moral Score')
             plt.fill_between(neighbor_sizes, np.array(utility_scores) - np.array(utility_score_stds), np.array(utility_scores) + np.array(utility_score_stds), alpha=0.2)
-            plt.xlabel('Times More likely to ask high reputation')
+            #plt.xlabel('Times More likely to ask high reputation')
             plt.ylabel('Average Utility')
             plt.grid(True)
 
             # Create the plot for reputations (average across repetitions)
             reputation_scores = [score[0] for score in results_reputation.values()]
             reputation_score_stds = [score[1] for score in results_reputation.values()]
-            plt.subplot(1, 3, 3)
+            plt.subplot(3, 1, 3)
             plt.errorbar(neighbor_sizes, reputation_scores, yerr=reputation_score_stds, fmt='-o', capsize=5, label='Average Moral Score')
             plt.fill_between(neighbor_sizes, np.array(reputation_scores) - np.array(reputation_score_stds), np.array(reputation_scores) + np.array(reputation_score_stds), alpha=0.2)
             plt.xlabel('Times More likely to ask high reputation')
